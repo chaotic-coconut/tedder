@@ -2,35 +2,28 @@
 
 [![CI](https://github.com/chaotic-coconut/tedder/actions/workflows/ci.yml/badge.svg)](https://github.com/chaotic-coconut/tedder/actions/workflows/ci.yml)
 
-`tedder` is an experimental, header-only C++23 library for reconstructing scalar and vector fields from scattered samples using local polynomial regression.
+`tedder` is a header-only C++23 library for reconstructing scalar and vector fields from scattered samples with local polynomial regression. The aim is to estimate both the field value and its spatial derivatives.
 
 > [!WARNING]
-> `tedder` is pre-alpha. Reconstruction is not implemented yet, and the API may change.
+> This project is pre-alpha. Reconstruction is not implemented yet, and the API is still taking shape.
 
 ## Status
 
-Currently implemented:
+The foundations are in place:
 
-* fixed-size points, values, matrices, and non-owning sample views
+* fixed-size points, values, and matrices
+* non-owning views of points and samples
 * Euclidean and per-axis periodic domains
 * distance and bandwidth calculations
-* the `LocalFit` result type
+* `LocalFit`, the result type for a reconstruction
 
-Planned:
-
-* compactly supported kernels
-* brute-force and kd-tree neighbour search
-* weighted polynomial fits of degree 0–2
-* Jacobians, divergence, vorticity, and strain
-* NumPy `.npy` input and output
+The next milestone is the first working fit: compactly supported kernels, brute-force neighbour search, and weighted polynomial regression. Degree 0–2 fits, a nanoflann-backed kd-tree, Jacobian-derived quantities, and NumPy I/O will follow.
 
 ## Requirements
 
-* C++23 compiler
-* CMake 3.24 or newer
-* Ninja for the commands below
+Building tedder requires a C++23 compiler and CMake 3.24 or newer. The commands below also assume Ninja.
 
-CI currently tests GCC 13 and Clang 18. Catch2 is downloaded automatically when building the tests.
+CI covers GCC 13 and Clang 18. Catch2 is downloaded when the tests are configured.
 
 ## Build and test
 
@@ -47,30 +40,30 @@ add_subdirectory(path/to/tedder)
 target_link_libraries(your_target PRIVATE tedder::tedder)
 ```
 
-Example using the current geometry API:
+The current API already supports mixed periodic and open geometry:
 
 ```cpp
 #include <tedder/field.hpp>
 
 using Point = tedder::Point<double, 3>;
 
-// Periodic in x and y with period 2, open in z.
+// x and y have period 2; z remains open.
 const tedder::Periodic<double, 3> domain{{2.0, 2.0, 0.0}};
 
 const Point p{0.1, 0.0, 1.0};
 const Point q{1.9, 0.0, 4.0};
 
-// x wraps, so 1.8 apart the long way is 0.2 the short way. z does not wrap.
-const double d = tedder::distance(domain, p, q);   // 3.0067, not 3.4986
+const double d = tedder::distance(domain, p, q); // approximately 3.0067
 
-// Half the shortest period: the largest bandwidth the domain allows.
-const double h_max = domain.max_bandwidth();       // 1.0
-const bool ok = tedder::admits_bandwidth(domain, 0.5);   // true, and 1.0 is false
+const double h_max = domain.max_bandwidth();     // 1.0
+const bool valid = tedder::admits_bandwidth(domain, 0.5);
 ```
+
+Here the separation along `x` is `0.2`, because the shorter path crosses the periodic boundary. A bandwidth of exactly `1.0` is not admitted.
 
 ## Name
 
-A tedder spreads cut hay over a neighbourhood. The name reflects how a kernel spreads each sample’s influence.
+A tedder spreads cut hay over its surroundings. A reconstruction kernel does something similar with the influence of each sample.
 
 ## License
 
