@@ -1,69 +1,113 @@
-# Prerequisites
-*.d
+# Build directories
+build/
+Build/
+build-*/
+cmake-build-*/
+out/
 
-# Compiled Object files
-*.slo
-*.lo
+# CMake in-source leftovers (we build out-of-source, but just in case)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+install_manifest.txt
+_deps/
+compile_commands.json
+CMakeUserPresets.json
+
+# Test and coverage output
+Testing/
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+coverage/
+*.lcov
+
+# Profiling output
+perf.data
+perf.data.old
+callgrind.out.*
+massif.out.*
+cachegrind.out.*
+
+# Generated data from examples and benchmarks
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.vtk
+*.vtu
+*.vti
+*.vtp
+*.csv
+
+# Compiled object files
 *.o
 *.obj
+*.slo
+*.lo
+*.d
+*.dwo
 
-# Precompiled Headers
+# Precompiled headers
 *.gch
 *.pch
 
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
+# Static libraries
 *.a
 *.lib
+*.la
+*.lai
+
+# Shared libraries
+*.so
+*.so.*
+*.dylib
+*.dll
 
 # Executables
 *.exe
 *.out
 *.app
 
-# Build directories
-build/
-Build/
-build-*/
+# Linker and debugger files
+*.ilk
+*.pdb
 
-# CMake generated files
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-install_manifest.txt
-compile_commands.json
+# Package managers
+vcpkg_installed/
+conan/
+.conan/
 
-# Temporary files
+# Editors and IDEs
+.vscode/
+.idea/
+.vs/
+*.swp
+*.swo
+*~
+
+# Patch and merge leftovers
+*.orig
+*.rej
+
+# AI tooling local state
+.claude/settings.local.json
+.codex/
+.cursor/
+.aider*
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary
 *.tmp
 *.log
 *.bak
-*.swp
 
-# vcpkg
-vcpkg_installed/
-
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
+# Deliberately NOT ignored:
+#   Makefile       would swallow a hand-written convenience wrapper

@@ -1,0 +1,8 @@
+BasedOnStyle: LLVM
+BreakBeforeBraces: GNU
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+ContinuationIndentWidth: 4
+IndentAccessModifiers: true
+ColumnLimit: 140
