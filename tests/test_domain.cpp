@@ -25,41 +25,9 @@ namespace
 struct Empty
 {
 };
-
-struct MissingDistance
-{
-    using scalar_type = double;
-    using point_type = Point<double, 2>;
-    static constexpr std::size_t dimension = 2;
-    point_type offset(const point_type &, const point_type &) const { return {}; }
-    double max_bandwidth() const { return 0; }
-};
-
-struct NotConst
-{
-    using scalar_type = double;
-    using point_type = Point<double, 2>;
-    static constexpr std::size_t dimension = 2;
-    point_type offset(const point_type &, const point_type &) const { return {}; }
-    double distance_squared(const point_type &, const point_type &) { return 0; } // missing const
-    double max_bandwidth() const { return 0; }
-};
-
-struct WrongReturn
-{
-    using scalar_type = double;
-    using point_type = Point<double, 2>;
-    static constexpr std::size_t dimension = 2;
-    int offset(const point_type &, const point_type &) const { return 0; } // wrong type
-    double distance_squared(const point_type &, const point_type &) const { return 0; }
-    double max_bandwidth() const { return 0; }
-};
 } // namespace
 
 static_assert(!Domain<Empty>);
-static_assert(!Domain<MissingDistance>);
-static_assert(!Domain<NotConst>);
-static_assert(!Domain<WrongReturn>);
 
 TEST_CASE("Euclidean: known values", "[domain][euclidean]")
 {

@@ -9,7 +9,14 @@
 
 ## Status
 
-The foundations are in place:
+Pre-alpha. Reconstruction is not implemented.
+
+The foundation types are in place and covered by tests. Stage 00 fixed
+three defects in them: the `Domain` concept accepted types that were not
+domains, non-finite periods produced NaN distances, and periodic reduction
+lost the minimum image for some large finite coordinates.
+
+Present:
 
 * fixed-size points, values, and matrices
 * non-owning views of points and samples
@@ -17,13 +24,16 @@ The foundations are in place:
 * distance and bandwidth calculations
 * `LocalFit`, the result type for a reconstruction
 
-The next milestone is the first working fit: compactly supported kernels, brute-force neighbour search, and weighted polynomial regression. Degree 0–2 fits, a nanoflann-backed kd-tree, Jacobian-derived quantities, and NumPy I/O will follow.
+Next: compactly supported kernels, then brute-force neighbour search.
 
 ## Requirements
 
 Building tedder requires a C++23 compiler and CMake 3.24 or newer. The commands below also assume Ninja.
 
 CI covers GCC 13 and Clang 18. Catch2 is downloaded when the tests are configured.
+
+`float` and `double` are tested. Other floating-point types are not
+rejected but are not supported.
 
 ## Build and test
 

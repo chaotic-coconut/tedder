@@ -36,6 +36,8 @@ concept Domain = requires(const G& g, const typename G::point_type& p,
   typename std::integral_constant<std::size_t, G::dimension>;
   requires Real<typename G::scalar_type>;
   requires G::dimension > 0;
+  requires std::same_as<typename G::point_type,
+                        Point<typename G::scalar_type, G::dimension>>;
   { G::dimension } -> std::convertible_to<std::size_t>;
   { g.offset(p, q) } noexcept -> std::same_as<typename G::point_type>;
   { g.distance_squared(p, q) } noexcept
@@ -48,9 +50,16 @@ The type requirement must precede `requires G::dimension > 0`; a separate helper
 concept is unnecessary. Requires-expression checks stop in lexical order when
 the result is determined. [C++ requires-expression rules](https://eel.is/c++draft/expr.prim.req)
 
-Do not require `point_type` to equal `Point<scalar_type,dimension>`, support
-indexing, or expose a particular layout. The exact return-type requirements above
-still apply. A positive custom-point fixture must protect this decision.
+Require `point_type` to equal `Point<scalar_type, dimension>`, per
+[ADR 0002](../../adr/0002-point-type-restriction.md):
+
+    requires std::same_as<typename G::point_type,
+                          Point<typename G::scalar_type, G::dimension>>;
+
+Place it after `requires Real<...>` and `requires G::dimension > 0`,
+because `Point<scalar_type, dimension>` is only well-formed once both
+hold. A model spelling `point_type` as `std::array<T,D>` still passes:
+that is the same type.
 
 The built-in methods already have `noexcept`; preserve them and the free helpers.
 Reject potentially throwing domain methods at the concept boundary. Zero and
@@ -94,7 +103,7 @@ use the accepted structure below, with `L = length[d]`:
 ```cpp
 scalar_type t = p[d] - q[d];
 if (L > scalar_type{}) {
-  if (std::isfinite(t) && std::abs(t) <= L) [[likely]] {
+  if (std::abs(t) <= L) [[likely]] {
     t -= L * std::round(t / L);
   } else {
     t = std::remainder(p[d], L) - std::remainder(q[d], L);
@@ -103,6 +112,15 @@ if (L > scalar_type{}) {
 }
 r[d] = t;
 ```
+
+The `std::isfinite(t)` test an earlier draft carried is unnecessary here.
+A valid configuration has a finite period, so an infinite displacement
+fails `std::abs(t) <= L` and routes to the slow path on its own. The
+earlier draft needed it because it compared against `L * 2^(digits/2)`,
+which could itself be infinite, making `inf <= inf` pass the guard.
+
+This makes the guard depend on `is_valid()` holding. That is why `offset`
+asserts it, and why the assertion is not redundant.
 
 The fallback reduces each finite coordinate before subtracting. It therefore
 handles the runtime case where the initial raw subtraction overflows. Open axes

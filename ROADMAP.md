@@ -1,6 +1,6 @@
 # tedder roadmap
 
-Stage 00 — foundation repair is active. Its detailed work is defined by the
+Stage 00 — foundation repair is complete. Its detailed work is defined by the
 [field plan](docs/stages/00-foundation/field-plan.md) and [test plan](docs/stages/00-foundation/test-plan.md).
 
 Later stages are planned:

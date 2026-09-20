@@ -1,5 +1,9 @@
 # tedder — decisions on the field.hpp revision (F1–F4)
 
+Status: accepted. The `point_type` decision is superseded by
+[ADR 0002](0002-point-type-restriction.md). The F3 fast-path guard was later
+simplified; see field-plan.md F3 for the shipped form. All other decisions stand.
+
 Measurements on GCC 13.3 and Clang 18, x86-64 Linux.
 
 ## Summary

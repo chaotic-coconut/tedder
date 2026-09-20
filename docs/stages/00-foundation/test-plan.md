@@ -48,14 +48,16 @@ No exhaustive cross-product of types, dimensions, and subview shapes is required
 
 ## B1. F1: Domain constraints
 
-Keep the existing positive checks for both built-in models. Add a small valid
-custom domain whose `point_type` is a distinct point struct, not `tedder::Point`.
-It must satisfy `Domain`; point representation remains deliberately unrestricted.
+Keep the existing positive checks for both built-in models. `point_type` must
+equal `Point<scalar_type, dimension>`, per
+[ADR 0002](../../adr/0002-point-type-restriction.md); point representation is
+no longer unrestricted.
 
 Using otherwise-valid fixtures, require clean `false` results for:
 
 - an integral scalar and a `std::string` scalar;
 - a mutable runtime `dimension`, zero dimension, and negative signed dimension;
+- a distinct point struct, not `tedder::Point`, in place of `point_type`;
 - each of `offset`, `distance_squared`, and `max_bandwidth` lacking `noexcept`;
 - an unrelated type such as `int`.
 
