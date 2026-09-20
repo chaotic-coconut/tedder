@@ -98,6 +98,7 @@ conan/
 .codex/
 .cursor/
 .aider*
+CLAUDE.local.md
 
 # OS junk
 .DS_Store
