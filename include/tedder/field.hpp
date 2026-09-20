@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <limits>
 #include <span>
+#include <type_traits>
 #include <vector>
 
 namespace tedder
@@ -41,11 +42,16 @@ template <class G>
 concept Domain = requires(const G &g, const typename G::point_type &p, const typename G::point_type &q) {
   typename G::scalar_type;
   typename G::point_type;
+  // Check constant-expression suitability before evaluating dimension > 0.
+  typename std::integral_constant<std::size_t, G::dimension>;
+  requires Real<typename G::scalar_type>;
+  requires G::dimension > 0;
+  requires std::same_as<typename G::point_type, Point<typename G::scalar_type, G::dimension>>;
   { G::dimension } -> std::convertible_to<std::size_t>;
   // offset(p, q) is p - q, wrapped to the nearest image on a periodic domain
-  { g.offset(p, q) } -> std::same_as<typename G::point_type>;
-  { g.distance_squared(p, q) } -> std::same_as<typename G::scalar_type>;
-  { g.max_bandwidth() } -> std::same_as<typename G::scalar_type>;
+  { g.offset(p, q) } noexcept -> std::same_as<typename G::point_type>;
+  { g.distance_squared(p, q) } noexcept -> std::same_as<typename G::scalar_type>;
+  { g.max_bandwidth() } noexcept -> std::same_as<typename G::scalar_type>;
 };
 
 template <Real T, std::size_t D> struct Euclidean
@@ -87,14 +93,32 @@ template <Real T, std::size_t D> struct Periodic
     // All zeros (the default) is therefore plain Euclidean, not NaN.
     point_type length{};
 
+    constexpr bool is_valid() const noexcept
+    {
+      for (std::size_t d = 0; d < D; ++d)
+        if (!std::isfinite(length[d]))
+          return false;
+      return true;
+    }
+
     constexpr point_type offset(const point_type &p, const point_type &q) const noexcept
     {
+      assert(is_valid());
       point_type r{};
       for (std::size_t d = 0; d < D; ++d)
         {
           scalar_type t = p[d] - q[d];
-          if (length[d] > scalar_type{})
-            t -= length[d] * std::round(t / length[d]);
+          scalar_type L = length[d];
+          if (L > scalar_type{})
+            {
+              if (std::abs(t) <= L) [[likely]]
+                t -= L * std::round(t / L);
+              else
+                {
+                  t = std::remainder(p[d], L) - std::remainder(q[d], L);
+                  t -= L * std::round(t / L);
+                }
+            }
           r[d] = t;
         }
       return r;
@@ -114,6 +138,8 @@ template <Real T, std::size_t D> struct Periodic
     // Returns infinity when no axis wraps.
     constexpr scalar_type max_bandwidth() const noexcept
     {
+      if (!is_valid())
+        return scalar_type{};
       scalar_type m = std::numeric_limits<scalar_type>::infinity();
       for (std::size_t d = 0; d < D; ++d)
         if (length[d] > scalar_type{})
@@ -138,7 +164,7 @@ template <Domain G> constexpr bool admits_bandwidth(const G &g, typename G::scal
 // ---------------------------------------------------------------- bundles
 
 // Points and their values, side by side. Owns nothing.
-// Both spans must outlive this object and must be the same length.
+// Both underlying storages must outlive this object, must stay valid and must be the same length.
 template <Real T, std::size_t D, std::size_t C> class SampleView
 {
   public:
@@ -148,7 +174,7 @@ template <Real T, std::size_t D, std::size_t C> class SampleView
     // precondition: pts.size() == vals.size()
     constexpr SampleView(PointView<T, D> pts, ValueView<T, C> vals) noexcept : points_(pts), values_(vals)
     {
-      assert(pts.size() == vals.size() && "SampleView: length mismatch");
+      assert(aligned() && "SampleView: length mismatch");
     }
 
     constexpr std::size_t size() const noexcept { return points_.size(); }
@@ -162,12 +188,18 @@ template <Real T, std::size_t D, std::size_t C> class SampleView
 
     constexpr SampleView subview(std::size_t first, std::size_t count) const noexcept
     {
+      assert(aligned());
+      assert(first <= size());
+      assert(count <= size() - first);
       return SampleView(points_.subspan(first, count), values_.subspan(first, count));
     }
 
   private:
     PointView<T, D> points_;
     ValueView<T, C> values_;
+
+    // Points and values are index-aligned. Checked wherever it is relied on.
+    constexpr bool aligned() const noexcept { return points_.size() == values_.size(); }
 };
 
 // Small fixed-size matrix. Stored flat, row by row.
@@ -195,7 +227,8 @@ template <Real T, std::size_t D, std::size_t C> struct LocalFit
 
 // ---------------------------------------------------------------- invariants
 
-// True if array<T,N> has no padding, so it can be written straight to a file.
+// True if array<T,N> has no padding, only a storage-size observation.
+// It alone does not establish portable serialization or permission to treat nested arrays as one scalar array
 template <Real T, std::size_t N> inline constexpr bool is_flat = (sizeof(std::array<T, N>) == N * sizeof(T));
 
 } // namespace tedder
