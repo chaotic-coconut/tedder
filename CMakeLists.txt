@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.24)
 project(tedder LANGUAGES CXX)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(TedderOptions)
+
 add_library(tedder INTERFACE)
 add_library(tedder::tedder ALIAS tedder)
 target_include_directories(tedder INTERFACE

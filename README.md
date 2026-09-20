@@ -28,9 +28,9 @@ CI covers GCC 13 and Clang 18. Catch2 is downloaded when the tests are configure
 ## Build and test
 
 ```sh
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake --preset dev-clang
+cmake --build --preset dev-clang
+ctest --preset dev-clang --output-on-failure
 ```
 
 ## Use with CMake
