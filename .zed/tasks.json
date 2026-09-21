@@ -1,0 +1,33 @@
+[
+  {
+    "label": "build + test (dev-clang)",
+    "command": "./tools/build-test.sh",
+    "args": ["dev-clang"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "build + test (dev-gcc)",
+    "command": "./tools/build-test.sh",
+    "args": ["dev-gcc"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "build + test (asan-ubsan)",
+    "command": "./tools/build-test.sh",
+    "args": ["asan-ubsan"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "build + test (all presets)",
+    "command": "./tools/build-test.sh",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  }
+]

@@ -35,9 +35,9 @@ template <Real T, std::size_t C> using ValueView = std::span<const Value<T, C>>;
 
 // ---------------------------------------------------------------- geometry:
 
-// Anything that can measure distance between points.
-// Euclidean and Periodic both satisfy it.
-// offset(p, q) is p - q. On a periodic axis, wrapped to the nearest copy.
+// A domain provides only a displacement (offset) and a bandwidth limit
+// (max_bandwidth). distance_squared and distance are free functions built on
+// offset. Euclidean and Periodic both satisfy it.
 template <class G>
 concept Domain = requires(const G &g, const typename G::point_type &p, const typename G::point_type &q) {
   typename G::scalar_type;
@@ -48,9 +48,8 @@ concept Domain = requires(const G &g, const typename G::point_type &p, const typ
   requires std::integral_constant<std::size_t, G::dimension>::value > 0;
   requires std::same_as<typename G::point_type, Point<typename G::scalar_type, G::dimension>>;
   { G::dimension } -> std::convertible_to<std::size_t>;
-  // offset(p, q) is p - q, wrapped to the nearest image on a periodic domain
+  // offset(p, q) is p - q. On a periodic axis, wrapped to the nearest image.
   { g.offset(p, q) } noexcept -> std::same_as<typename G::point_type>;
-  { g.distance_squared(p, q) } noexcept -> std::same_as<typename G::scalar_type>;
   { g.max_bandwidth() } noexcept -> std::same_as<typename G::scalar_type>;
 };
 
@@ -66,15 +65,6 @@ template <Real T, std::size_t D> struct Euclidean
       for (std::size_t i = 0; i < D; ++i)
         r[i] = p[i] - q[i];
       return r;
-    }
-
-    constexpr scalar_type distance_squared(const point_type &p, const point_type &q) const noexcept
-    {
-      const point_type r = offset(p, q);
-      scalar_type s{};
-      for (std::size_t i = 0; i < D; ++i)
-        s += r[i] * r[i];
-      return s;
     }
 
     constexpr scalar_type max_bandwidth() const noexcept { return std::numeric_limits<scalar_type>::infinity(); }
@@ -101,9 +91,10 @@ template <Real T, std::size_t D> struct Periodic
       return true;
     }
 
-    // Preconditions for offset and distance_squared: coordinates are finite and
-    // is_valid() holds at the time of the call. length is public, so changing it
-    // can invalidate a domain that was valid when it was checked.
+    // Preconditions for offset: coordinates are finite and is_valid() holds at
+    // the time of the call. They apply to everything built on offset
+    // (tedder::distance_squared and tedder::distance). length is public, so
+    // changing it can invalidate a domain that was valid when it was checked.
     constexpr point_type offset(const point_type &p, const point_type &q) const noexcept
     {
       assert(is_valid());
@@ -127,15 +118,6 @@ template <Real T, std::size_t D> struct Periodic
       return r;
     }
 
-    constexpr scalar_type distance_squared(const point_type &p, const point_type &q) const noexcept
-    {
-      const point_type r = offset(p, q);
-      scalar_type s{};
-      for (std::size_t i = 0; i < D; ++i)
-        s += r[i] * r[i];
-      return s;
-    }
-
     // Largest bandwidth that still works, as a strict limit.
     // h must be smaller than this, not equal to it.
     // Returns infinity when no axis wraps.
@@ -151,13 +133,26 @@ template <Real T, std::size_t D> struct Periodic
     }
 };
 
+// Sum of the squared components of g.offset(p, q), in axis order.
+// A domain cannot override it. The library calls it qualified
+// (tedder::distance_squared).
 // Summing squares can overflow or underflow even when the true distance is
-// representable: Euclidean<double,1> with p = {1e200}, q = {0} gives
-// infinity. The same limit applies to distance_squared.
+// representable: Euclidean<double,1> with p = {1e200}, q = {0} gives infinity.
+template <Domain G>
+constexpr typename G::scalar_type distance_squared(const G &g, const typename G::point_type &p, const typename G::point_type &q) noexcept
+{
+  const typename G::point_type r = g.offset(p, q);
+  typename G::scalar_type s{};
+  for (const auto x : r)
+    s += x * x;
+  return s;
+}
+
+// sqrt of distance_squared; inherits its overflow and underflow limit.
 template <Domain G>
 constexpr typename G::scalar_type distance(const G &g, const typename G::point_type &p, const typename G::point_type &q) noexcept
 {
-  return std::sqrt(g.distance_squared(p, q));
+  return std::sqrt(tedder::distance_squared(g, p, q));
 }
 
 // True if h is a usable bandwidth for this domain.
@@ -226,15 +221,50 @@ template <Real T, std::size_t R, std::size_t C> struct Matrix
     constexpr const T *data() const noexcept { return m.data(); }
 };
 
-// Result of one local fit. Determined entirely by D and C.
-// jacobian[c, d] is the derivative of component c along axis d.
-template <Real T, std::size_t D, std::size_t C> struct LocalFit
+// What a LocalFit holds:
+//   constant  -> value
+//   linear    -> value and jacobian
+//   quadratic -> value, jacobian and hessians
+enum class FitOrder : unsigned
+{
+  constant = 0,
+  linear = 1,
+  quadratic = 2
+};
+
+// Result of one local fit: the reconstructed field at the evaluation point,
+// in physical coordinates. Members depend on FitOrder (default linear);
+// orders above quadratic are rejected by the constraint.
+// jacobian[c, d] = d f_c / d x_d
+template <Real T, std::size_t D, std::size_t C, FitOrder P = FitOrder::linear>
+  requires(P <= FitOrder::quadratic)
+struct LocalFit;
+
+template <Real T, std::size_t D, std::size_t C> struct LocalFit<T, D, C, FitOrder::constant>
+{
+    Value<T, C> value{}; // f(x)
+};
+
+template <Real T, std::size_t D, std::size_t C> struct LocalFit<T, D, C, FitOrder::linear>
 {
     Value<T, C> value{};        // f(x)
-    Matrix<T, C, D> jacobian{}; // J[c][d] = d f_c / d x_d
-    std::size_t neighbors = 0;
-    T bandwidth{};
+    Matrix<T, C, D> jacobian{}; // jacobian[c, d] = d f_c / d x_d
 };
+
+template <Real T, std::size_t D, std::size_t C> struct LocalFit<T, D, C, FitOrder::quadratic>
+{
+    Value<T, C> value{};        // f(x)
+    Matrix<T, C, D> jacobian{}; // jacobian[c, d] = d f_c / d x_d
+    // hessians[c][i, j] = d^2 f_c / (d x_i d x_j); each matrix is symmetric
+    std::array<Matrix<T, D, D>, C> hessians{};
+};
+
+// True for the orders whose LocalFit has a jacobian / hessians; for
+// constraining generic code.
+template <FitOrder P>
+concept WithJacobian = (P >= FitOrder::linear);
+template <FitOrder P>
+concept WithHessians = WithJacobian<P> && (P >= FitOrder::quadratic);
 
 // ---------------------------------------------------------------- invariants
 

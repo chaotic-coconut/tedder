@@ -41,11 +41,11 @@ template <Domain G> void check_generic_domain_laws(const G &g)
   const auto zero = g.offset(p, p);
   for (std::size_t d = 0; d < D; ++d)
     CHECK(zero[d] == T{0});
-  CHECK(g.distance_squared(p, p) == T{0});
+  CHECK(tedder::distance_squared(g, p, p) == T{0});
 
   // distance_squared is never negative and is symmetric in its arguments.
-  const T d2pq = g.distance_squared(p, q);
-  const T d2qp = g.distance_squared(q, p);
+  const T d2pq = tedder::distance_squared(g, p, q);
+  const T d2qp = tedder::distance_squared(g, q, p);
   CHECK(d2pq >= T{0});
   CHECK(d2pq == d2qp);
 
@@ -83,19 +83,20 @@ template <Domain G> void check_generic_domain_laws(const G &g)
 // own reduction. For Periodic domains the caller must pick a period large
 // enough that this pair never wraps.
 template <Domain G>
-void check_known_distance(const G &g, const typename G::point_type &p, const typename G::point_type &q, typename G::scalar_type expected_distance)
+void check_known_distance(const G &g, const typename G::point_type &p, const typename G::point_type &q,
+                          typename G::scalar_type expected_distance)
 {
   using T = typename G::scalar_type;
   const T expected_sq = expected_distance * expected_distance;
-  CHECK(g.distance_squared(p, q) == expected_sq);
+  CHECK(tedder::distance_squared(g, p, q) == expected_sq);
   CHECK(distance(g, p, q) == expected_distance);
 }
 
 template <class T, std::size_t D> struct KnownPair
 {
-  Point<T, D> p{};
-  Point<T, D> q{};
-  T distance{};
+    Point<T, D> p{};
+    Point<T, D> q{};
+    T distance{};
 };
 
 // 1D: 0 to 5. 2D: the 3-4-5 triangle. 3D: 2-3-6-7, another integer
@@ -194,14 +195,14 @@ template <Real T, std::size_t D> void check_periodic_period_shift_invariance()
   REQUIRE(g.is_valid());
 
   const auto o0 = g.offset(p, q);
-  const T d20 = g.distance_squared(p, q);
+  const T d20 = tedder::distance_squared(g, p, q);
 
   Point<T, D> p_shifted{};
   for (std::size_t d = 0; d < D; ++d)
     p_shifted[d] = p[d] + static_cast<T>(d + 1) * g.length[d]; // shift by (d+1) whole periods
 
   const auto o1 = g.offset(p_shifted, q);
-  const T d21 = g.distance_squared(p_shifted, q);
+  const T d21 = tedder::distance_squared(g, p_shifted, q);
 
   const T eps = std::numeric_limits<T>::epsilon();
   for (std::size_t d = 0; d < D; ++d)
@@ -439,8 +440,7 @@ template <Real T> void check_admits_bandwidth_follows_smallest_period()
 }
 } // namespace
 
-TEST_CASE("Periodic: max_bandwidth is governed by the smallest positive period, not the first",
-          "[geometry][periodic][bandwidth]")
+TEST_CASE("Periodic: max_bandwidth is governed by the smallest positive period, not the first", "[geometry][periodic][bandwidth]")
 {
   check_max_bandwidth_smallest_period_2d<double>();
   check_max_bandwidth_smallest_period_2d<float>();
@@ -657,8 +657,8 @@ namespace
 template <Real T> void check_reduction_boundary_neighbours()
 {
   const T L = T{4};
-  const T below = L - std::nextafter(L, T{0});                                   // ulp just below L
-  const T above = std::nextafter(L, std::numeric_limits<T>::infinity()) - L;     // ulp just above L
+  const T below = L - std::nextafter(L, T{0});                               // ulp just below L
+  const T above = std::nextafter(L, std::numeric_limits<T>::infinity()) - L; // ulp just above L
 
   Periodic<T, 2> g;
   g.length = {L, T{-1}};

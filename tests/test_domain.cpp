@@ -34,9 +34,9 @@ TEST_CASE("Euclidean: known values", "[domain][euclidean]")
   Euclidean<double, 2> g;
   const Point<double, 2> p{0.0, 0.0}, q{3.0, 4.0};
 
-  CHECK(g.distance_squared(p, q) == 25.0);
+  CHECK(tedder::distance_squared(g, p, q) == 25.0);
   CHECK(distance(g, p, q) == 5.0);
-  CHECK(g.distance_squared(p, p) == 0.0);
+  CHECK(tedder::distance_squared(g, p, p) == 0.0);
 }
 
 TEST_CASE("Euclidean: offset is p - q", "[domain][euclidean]")
@@ -73,7 +73,7 @@ TEST_CASE("Periodic: default construction does not wrap", "[domain][periodic]")
   const Point<double, 3> p{0.1, 0.2, 0.3}, q{0.9, 0.8, 0.7};
 
   CHECK(z.offset(p, q) == e.offset(p, q));
-  CHECK(z.distance_squared(p, q) == e.distance_squared(p, q));
+  CHECK(tedder::distance_squared(z, p, q) == tedder::distance_squared(e, p, q));
   CHECK(z.max_bandwidth() == std::numeric_limits<double>::infinity());
 }
 
@@ -115,7 +115,7 @@ TEST_CASE("Periodic: half a box apart is still antisymmetric", "[domain][periodi
 
   CHECK(g.offset(x, y)[0] == 1.0);
   CHECK(g.offset(y, x)[0] == -1.0);
-  CHECK(g.distance_squared(x, y) == 1.0);
+  CHECK(tedder::distance_squared(g, x, y) == 1.0);
 }
 
 TEST_CASE("Periodic: points far outside the box still wrap", "[domain][periodic]")
@@ -157,6 +157,6 @@ TEST_CASE("Periodic: works at compile time", "[domain][periodic]")
   constexpr Periodic<double, 2> g{{2.0, 2.0}};
   static_assert(g.max_bandwidth() == 1.0);
   static_assert(admits_bandwidth(g, 0.5));
-  // static_assert(g.distance_squared({0.25, 0.0}, {1.75, 0.0}) == 0.25); // not on clang
+  // static_assert(tedder::distance_squared(g, {0.25, 0.0}, {1.75, 0.0}) == 0.25); // not on clang
   SUCCEED();
 }

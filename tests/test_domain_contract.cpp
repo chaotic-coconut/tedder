@@ -2,7 +2,9 @@
 // negative fixture changes exactly one aspect of a minimal valid domain and
 // must make Domain<Fixture> evaluate to a clean `false` via static_assert,
 // never a hard template error. Fixtures live at namespace scope: a local
-// class cannot have a `static constexpr` member.
+// class cannot have a `static constexpr` member. distance_squared is not part of
+// the concept (it is a free function over offset), so no fixture declares it
+// unless the test is about exactly that.
 //
 // Every fixture below was probed on this project's GCC/Clang toolchains and
 // confirmed to compile cleanly (no hard errors) before being kept here.
@@ -36,16 +38,24 @@ struct ValidCustom
         r[i] = p[i] - q[i];
       return r;
     }
-    double distance_squared(const point_type &p, const point_type &q) const noexcept
-    {
-      const point_type r = offset(p, q);
-      return r[0] * r[0] + r[1] * r[1];
-    }
+    double max_bandwidth() const noexcept { return std::numeric_limits<double>::infinity(); }
+};
+
+// A valid domain whose member distance_squared lies. The free functions must
+// derive everything from offset and ignore it.
+struct ValidWithBogusMember
+{
+    using scalar_type = double;
+    using point_type = Point<double, 2>;
+    static constexpr std::size_t dimension = 2;
+
+    point_type offset(const point_type &p, const point_type &q) const noexcept { return {p[0] - q[0], p[1] - q[1]}; }
+    double distance_squared(const point_type &, const point_type &) const noexcept { return 999.0; }
     double max_bandwidth() const noexcept { return std::numeric_limits<double>::infinity(); }
 };
 
 static_assert(noexcept(distance(std::declval<const ValidCustom &>(), std::declval<const Point<double, 2> &>(),
-                                 std::declval<const Point<double, 2> &>())));
+                                std::declval<const Point<double, 2> &>())));
 static_assert(noexcept(admits_bandwidth(std::declval<const ValidCustom &>(), std::declval<double>())));
 
 // Point<T,D> is an alias for std::array<T,D>: spelling it out names the same
@@ -63,11 +73,6 @@ struct ValidArraySpelling
         r[i] = p[i] - q[i];
       return r;
     }
-    double distance_squared(const point_type &p, const point_type &q) const noexcept
-    {
-      const point_type r = offset(p, q);
-      return r[0] * r[0] + r[1] * r[1];
-    }
     double max_bandwidth() const noexcept { return std::numeric_limits<double>::infinity(); }
 };
 
@@ -79,7 +84,6 @@ struct StringScalar
     using point_type = Point<double, 2>; // irrelevant: Real<scalar_type> fails first
     static constexpr std::size_t dimension = 2;
     point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -89,7 +93,6 @@ struct IntScalar
     using point_type = Point<double, 2>;
     static constexpr std::size_t dimension = 2;
     point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -109,11 +112,6 @@ struct RuntimeDimension
         r[i] = p[i] - q[i];
       return r;
     }
-    double distance_squared(const point_type &p, const point_type &q) const noexcept
-    {
-      const point_type r = offset(p, q);
-      return r[0] * r[0] + r[1] * r[1];
-    }
     double max_bandwidth() const noexcept { return 0.0; }
 };
 int RuntimeDimension::dimension = 2;
@@ -126,7 +124,6 @@ struct ZeroDimension
     using point_type = Point<double, 0>;
     static constexpr std::size_t dimension = 0;
     point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -144,11 +141,6 @@ struct NegativeDimension
         r[i] = p[i] - q[i];
       return r;
     }
-    double distance_squared(const point_type &p, const point_type &q) const noexcept
-    {
-      const point_type r = offset(p, q);
-      return r[0] * r[0] + r[1] * r[1];
-    }
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -161,7 +153,6 @@ struct PointTypeTooWide
     using point_type = Point<double, 3>;
     static constexpr std::size_t dimension = 2;
     point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -172,7 +163,6 @@ struct PointTypeWrongScalar
     using point_type = Point<float, 2>;
     static constexpr std::size_t dimension = 2;
     point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -189,11 +179,6 @@ struct ForeignPointDomain
     static constexpr std::size_t dimension = 2;
 
     point_type offset(const point_type &p, const point_type &q) const noexcept { return point_type{p.x - q.x, p.y - q.y}; }
-    double distance_squared(const point_type &p, const point_type &q) const noexcept
-    {
-      const point_type r = offset(p, q);
-      return r.x * r.x + r.y * r.y;
-    }
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -204,16 +189,6 @@ struct MissingOffset
     using scalar_type = double;
     using point_type = Point<double, 2>;
     static constexpr std::size_t dimension = 2;
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
-    double max_bandwidth() const noexcept { return 0.0; }
-};
-
-struct MissingDistanceSquared
-{
-    using scalar_type = double;
-    using point_type = Point<double, 2>;
-    static constexpr std::size_t dimension = 2;
-    point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -223,7 +198,6 @@ struct MissingMaxBandwidth
     using point_type = Point<double, 2>;
     static constexpr std::size_t dimension = 2;
     point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
 };
 
 // ---------------------------------------------------------------- wrong return type
@@ -234,17 +208,6 @@ struct OffsetWrongReturn
     using point_type = Point<double, 2>;
     static constexpr std::size_t dimension = 2;
     int offset(const point_type &, const point_type &) const noexcept { return 0; }
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
-    double max_bandwidth() const noexcept { return 0.0; }
-};
-
-struct DistanceSquaredWrongReturn
-{
-    using scalar_type = double;
-    using point_type = Point<double, 2>;
-    static constexpr std::size_t dimension = 2;
-    point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    int distance_squared(const point_type &, const point_type &) const noexcept { return 0; }
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -254,7 +217,6 @@ struct MaxBandwidthWrongReturn
     using point_type = Point<double, 2>;
     static constexpr std::size_t dimension = 2;
     point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
     int max_bandwidth() const noexcept { return 0; }
 };
 
@@ -266,17 +228,6 @@ struct OffsetNotConst
     using point_type = Point<double, 2>;
     static constexpr std::size_t dimension = 2;
     point_type offset(const point_type &, const point_type &) noexcept { return {}; } // missing const
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
-    double max_bandwidth() const noexcept { return 0.0; }
-};
-
-struct DistanceSquaredNotConst
-{
-    using scalar_type = double;
-    using point_type = Point<double, 2>;
-    static constexpr std::size_t dimension = 2;
-    point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) noexcept { return 0.0; } // missing const
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -286,7 +237,6 @@ struct MaxBandwidthNotConst
     using point_type = Point<double, 2>;
     static constexpr std::size_t dimension = 2;
     point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
     double max_bandwidth() noexcept { return 0.0; } // missing const
 };
 
@@ -298,17 +248,6 @@ struct OffsetNotNoexcept
     using point_type = Point<double, 2>;
     static constexpr std::size_t dimension = 2;
     point_type offset(const point_type &, const point_type &) const { return {}; } // missing noexcept
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
-    double max_bandwidth() const noexcept { return 0.0; }
-};
-
-struct DistanceSquaredNotNoexcept
-{
-    using scalar_type = double;
-    using point_type = Point<double, 2>;
-    static constexpr std::size_t dimension = 2;
-    point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) const { return 0.0; } // missing noexcept
     double max_bandwidth() const noexcept { return 0.0; }
 };
 
@@ -318,7 +257,6 @@ struct MaxBandwidthNotNoexcept
     using point_type = Point<double, 2>;
     static constexpr std::size_t dimension = 2;
     point_type offset(const point_type &, const point_type &) const noexcept { return {}; }
-    double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
     double max_bandwidth() const { return 0.0; } // missing noexcept
 };
 // A dimension that is a class type with a constexpr conversion to size_t.
@@ -345,7 +283,7 @@ struct ClassDimZero : Euclidean<double, 2>
 };
 } // namespace
 
-static_assert(Domain<ClassDimTwo>);  // converted value 2 is positive
+static_assert(Domain<ClassDimTwo>);   // converted value 2 is positive
 static_assert(!Domain<ClassDimZero>); // converted value 0, despite operator>
 
 // ---------------------------------------------------------------- verdicts
@@ -367,29 +305,42 @@ static_assert(!Domain<PointTypeWrongScalar>);
 static_assert(!Domain<ForeignPointDomain>);
 
 static_assert(!Domain<MissingOffset>);
-static_assert(!Domain<MissingDistanceSquared>);
 static_assert(!Domain<MissingMaxBandwidth>);
 
 static_assert(!Domain<OffsetWrongReturn>);
-static_assert(!Domain<DistanceSquaredWrongReturn>);
 static_assert(!Domain<MaxBandwidthWrongReturn>);
 
 static_assert(!Domain<OffsetNotConst>);
-static_assert(!Domain<DistanceSquaredNotConst>);
 static_assert(!Domain<MaxBandwidthNotConst>);
 
 static_assert(!Domain<OffsetNotNoexcept>);
-static_assert(!Domain<DistanceSquaredNotNoexcept>);
 static_assert(!Domain<MaxBandwidthNotNoexcept>);
 
 static_assert(!Domain<int>);
 
+namespace other
+{
+// Own namespace, so an unqualified distance_squared call in the library would
+// find the overload below by argument-dependent lookup.
+struct OwnDomain
+{
+    using scalar_type = double;
+    using point_type = Point<double, 2>;
+    static constexpr std::size_t dimension = 2;
+
+    point_type offset(const point_type &p, const point_type &q) const noexcept { return {p[0] - q[0], p[1] - q[1]}; }
+    double max_bandwidth() const noexcept { return std::numeric_limits<double>::infinity(); }
+};
+
+double distance_squared(const OwnDomain &, const OwnDomain::point_type &, const OwnDomain::point_type &) noexcept { return 999.0; }
+} // namespace other
+
+static_assert(Domain<ValidWithBogusMember>);
+static_assert(Domain<other::OwnDomain>);
+
 // A trivial runtime presence so this translation unit contributes a
 // TEST_CASE to the suite (the checks above are all compile-time).
-TEST_CASE("Domain: concept fixtures compiled and evaluated as expected", "[domain][contract]")
-{
-  SUCCEED();
-}
+TEST_CASE("Domain: concept fixtures compiled and evaluated as expected", "[domain][contract]") { SUCCEED(); }
 
 TEST_CASE("Domain: a custom Domain works through the free helper functions", "[domain][contract]")
 {
@@ -399,4 +350,22 @@ TEST_CASE("Domain: a custom Domain works through the free helper functions", "[d
   CHECK(distance(g, p, q) == 5.0);
   CHECK(admits_bandwidth(g, 1.0));
   CHECK_FALSE(admits_bandwidth(g, -1.0));
+}
+
+TEST_CASE("Domain: a member distance_squared is ignored by the free functions", "[domain][contract]")
+{
+  const ValidWithBogusMember g;
+  const Point<double, 2> p{3.0, 4.0}, q{0.0, 0.0};
+
+  CHECK(tedder::distance_squared(g, p, q) == 25.0);
+  CHECK(tedder::distance(g, p, q) == 5.0);
+}
+
+TEST_CASE("Domain: distance ignores an ADL-visible distance_squared overload", "[domain][contract]")
+{
+  const other::OwnDomain g;
+  const Point<double, 2> p{6.0, 8.0}, q{0.0, 0.0};
+
+  CHECK(tedder::distance_squared(g, p, q) == 100.0);
+  CHECK(tedder::distance(g, p, q) == 10.0);
 }
