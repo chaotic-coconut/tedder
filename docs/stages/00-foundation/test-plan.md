@@ -1,7 +1,11 @@
 # tedder:
 
+Status: completed. Stage 00 is closed. This document is reference material
+describing what was planned and tested. Where it and the test files differ,
+the tests are authoritative.
+
 Revised 2026-09-19. This replaces the
-previous testing plan. Read [FIELD_PLAN.md](FIELD_PLAN.md) first: it defines the
+previous testing plan. Read [field-plan.md](field-plan.md) first: it defines the
 production contracts. These documents are instructions, not implemented changes.
 
 ## Scope and order

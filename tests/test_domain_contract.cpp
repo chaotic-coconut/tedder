@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <limits>
 #include <string>
+#include <utility>
 
 #include <tedder/field.hpp>
 
@@ -42,6 +43,10 @@ struct ValidCustom
     }
     double max_bandwidth() const noexcept { return std::numeric_limits<double>::infinity(); }
 };
+
+static_assert(noexcept(distance(std::declval<const ValidCustom &>(), std::declval<const Point<double, 2> &>(),
+                                 std::declval<const Point<double, 2> &>())));
+static_assert(noexcept(admits_bandwidth(std::declval<const ValidCustom &>(), std::declval<double>())));
 
 // Point<T,D> is an alias for std::array<T,D>: spelling it out names the same
 // type, so this must also satisfy Domain. Not a loophole.
@@ -316,7 +321,32 @@ struct MaxBandwidthNotNoexcept
     double distance_squared(const point_type &, const point_type &) const noexcept { return 0.0; }
     double max_bandwidth() const { return 0.0; } // missing noexcept
 };
+// A dimension that is a class type with a constexpr conversion to size_t.
+// Each has an operator> that disagrees with the converted value: these
+// fixtures only pass if the concept compares the converted value, never
+// operator> itself (which need not even be constexpr).
+struct DimTwo
+{
+    constexpr operator std::size_t() const noexcept { return 2; }
+    bool operator>(int) const noexcept { return false; } // lies, and not constexpr
+};
+struct DimZero
+{
+    constexpr operator std::size_t() const noexcept { return 0; }
+    bool operator>(int) const noexcept { return true; } // lies the other way
+};
+struct ClassDimTwo : Euclidean<double, 2>
+{
+    static constexpr DimTwo dimension{};
+};
+struct ClassDimZero : Euclidean<double, 2>
+{
+    static constexpr DimZero dimension{};
+};
 } // namespace
+
+static_assert(Domain<ClassDimTwo>);  // converted value 2 is positive
+static_assert(!Domain<ClassDimZero>); // converted value 0, despite operator>
 
 // ---------------------------------------------------------------- verdicts
 
@@ -359,4 +389,14 @@ static_assert(!Domain<int>);
 TEST_CASE("Domain: concept fixtures compiled and evaluated as expected", "[domain][contract]")
 {
   SUCCEED();
+}
+
+TEST_CASE("Domain: a custom Domain works through the free helper functions", "[domain][contract]")
+{
+  const ValidCustom g;
+  const Point<double, 2> p{3.0, 4.0}, q{0.0, 0.0};
+
+  CHECK(distance(g, p, q) == 5.0);
+  CHECK(admits_bandwidth(g, 1.0));
+  CHECK_FALSE(admits_bandwidth(g, -1.0));
 }

@@ -1,8 +1,11 @@
 # tedder — decisions on the field.hpp revision (F1–F4)
 
-Status: accepted. The `point_type` decision is superseded by
-[ADR 0002](0002-point-type-restriction.md). The F3 fast-path guard was later
-simplified; see field-plan.md F3 for the shipped form. All other decisions stand.
+Status: accepted, with corrections. The `point_type` decision is superseded
+by [ADR 0002](0002-point-type-restriction.md). The F3 fast-path guard was
+later simplified; see
+[field-plan.md](../stages/00-foundation/field-plan.md) F3 for the shipped
+form. Two claims in the body are corrected in the Corrections section at
+the end. All other decisions stand.
 
 Measurements on GCC 13.3 and Clang 18, x86-64 Linux.
 
@@ -335,3 +338,26 @@ mature library. `tedder` cannot yet reconstruct a field.
 
 Checking that mutating an owner is visible through a `SampleView` tests
 `std::span`, not this code.
+
+## Corrections
+
+**Fast-path exactness.** The body says: "The fast path is exact in its regime,
+with no qualification." That holds for the wrapping step, not for the whole
+`offset` operation, because the initial subtraction `p - q` can round before
+the reduction runs. Counterexample, binary64: `L = 1`, `p = 0x1p-54`, `q = 1`.
+The difference rounds to `-1`, the fast path returns `0`, and the exact
+minimum image is `0x1p-54`. The correct claim: for an already-rounded finite
+displacement `t` with `|t| <= L`, the wrapping correction introduces no
+further rounding. When `round(t/L)` is zero `t` is unchanged; when it is ±1
+the product `L * k` is exact and the subtraction falls under Sterbenz's
+lemma.
+
+**Full rank.** The body says: "Sample coordinates along the thin axis still
+vary within the neighbourhood, so the design matrix stays full rank and the
+derivative along that axis is still estimated." The same claim appears in the
+summary list near the top: "The fit stays full rank." The correction applies
+to both. Variation per axis is not
+sufficient: collinear points `(0,0), (1,1), (2,2)` vary in both coordinates,
+yet the degree-one design matrix `[1, x, y]` has rank 2. What a bandwidth
+spanning a thin axis loses is locality along it. Rank deficiency is a
+separate question the fit must detect.

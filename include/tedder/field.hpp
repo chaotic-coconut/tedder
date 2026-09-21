@@ -45,7 +45,7 @@ concept Domain = requires(const G &g, const typename G::point_type &p, const typ
   // Check constant-expression suitability before evaluating dimension > 0.
   typename std::integral_constant<std::size_t, G::dimension>;
   requires Real<typename G::scalar_type>;
-  requires G::dimension > 0;
+  requires std::integral_constant<std::size_t, G::dimension>::value > 0;
   requires std::same_as<typename G::point_type, Point<typename G::scalar_type, G::dimension>>;
   { G::dimension } -> std::convertible_to<std::size_t>;
   // offset(p, q) is p - q, wrapped to the nearest image on a periodic domain
@@ -101,6 +101,9 @@ template <Real T, std::size_t D> struct Periodic
       return true;
     }
 
+    // Preconditions for offset and distance_squared: coordinates are finite and
+    // is_valid() holds at the time of the call. length is public, so changing it
+    // can invalidate a domain that was valid when it was checked.
     constexpr point_type offset(const point_type &p, const point_type &q) const noexcept
     {
       assert(is_valid());
@@ -148,6 +151,9 @@ template <Real T, std::size_t D> struct Periodic
     }
 };
 
+// Summing squares can overflow or underflow even when the true distance is
+// representable: Euclidean<double,1> with p = {1e200}, q = {0} gives
+// infinity. The same limit applies to distance_squared.
 template <Domain G>
 constexpr typename G::scalar_type distance(const G &g, const typename G::point_type &p, const typename G::point_type &q) noexcept
 {
@@ -183,9 +189,13 @@ template <Real T, std::size_t D, std::size_t C> class SampleView
     constexpr PointView<T, D> points() const noexcept { return points_; }
     constexpr ValueView<T, C> values() const noexcept { return values_; }
 
+    // Unchecked: i < size().
     constexpr const Point<T, D> &point(std::size_t i) const noexcept { return points_[i]; }
+    // Unchecked: i < size().
     constexpr const Value<T, C> &value(std::size_t i) const noexcept { return values_[i]; }
 
+    // Unchecked in Release: first <= size() && count <= size() - first.
+    // Asserted in Debug builds below.
     constexpr SampleView subview(std::size_t first, std::size_t count) const noexcept
     {
       assert(aligned());
@@ -209,6 +219,7 @@ template <Real T, std::size_t R, std::size_t C> struct Matrix
     std::array<T, R * C> m{}; // flat, row-major
     static constexpr std::size_t rows = R, cols = C;
 
+    // Unchecked: r < rows and c < cols.
     constexpr T &operator[](std::size_t r, std::size_t c) noexcept { return m[r * cols + c]; }
     constexpr const T &operator[](std::size_t r, std::size_t c) const noexcept { return m[r * cols + c]; }
     constexpr T *data() noexcept { return m.data(); }

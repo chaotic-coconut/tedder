@@ -367,6 +367,105 @@ TEST_CASE("Periodic: admits_bandwidth is strict at the boundary", "[geometry][pe
   check_admits_bandwidth_boundary<float, 3>();
 }
 
+// max_bandwidth() must be the smallest positive period divided by two, not
+// merely the first one encountered while scanning axes. Every test above
+// this point uses periods in increasing order, so it cannot distinguish
+// "smallest positive" from "first positive" or "first axis". Each case below
+// places the shortest positive period in a different position, including one
+// with an open axis ahead of it.
+namespace
+{
+template <Real T> void check_max_bandwidth_smallest_period_2d()
+{
+  {
+    Periodic<T, 2> g;
+    g.length = {T{2}, T{6}};
+    REQUIRE(g.is_valid());
+    CHECK(g.max_bandwidth() == T{1});
+  }
+  {
+    Periodic<T, 2> g;
+    g.length = {T{6}, T{2}};
+    REQUIRE(g.is_valid());
+    CHECK(g.max_bandwidth() == T{1});
+  }
+  {
+    // Open axis precedes the shortest period: distinguishes "first positive"
+    // from "first axis" as well.
+    Periodic<T, 2> g;
+    g.length = {T{-1}, T{2}};
+    REQUIRE(g.is_valid());
+    CHECK(g.max_bandwidth() == T{1});
+  }
+}
+
+template <Real T> void check_max_bandwidth_smallest_period_3d()
+{
+  {
+    Periodic<T, 3> g;
+    g.length = {T{2}, T{6}, T{4}};
+    REQUIRE(g.is_valid());
+    CHECK(g.max_bandwidth() == T{1});
+  }
+  {
+    Periodic<T, 3> g;
+    g.length = {T{6}, T{2}, T{4}};
+    REQUIRE(g.is_valid());
+    CHECK(g.max_bandwidth() == T{1});
+  }
+  {
+    Periodic<T, 3> g;
+    g.length = {T{6}, T{4}, T{2}};
+    REQUIRE(g.is_valid());
+    CHECK(g.max_bandwidth() == T{1});
+  }
+  {
+    // Open axis precedes the shortest period.
+    Periodic<T, 3> g;
+    g.length = {T{0}, T{6}, T{2}};
+    REQUIRE(g.is_valid());
+    CHECK(g.max_bandwidth() == T{1});
+  }
+}
+
+// The consequence, not only the value: a bandwidth admissible under a
+// "first positive period" mutation must actually be rejected.
+template <Real T> void check_admits_bandwidth_follows_smallest_period()
+{
+  Periodic<T, 3> g;
+  g.length = {T{6}, T{2}, T{4}};
+  REQUIRE(g.is_valid());
+  CHECK_FALSE(admits_bandwidth(g, T{2}));
+}
+} // namespace
+
+TEST_CASE("Periodic: max_bandwidth is governed by the smallest positive period, not the first",
+          "[geometry][periodic][bandwidth]")
+{
+  check_max_bandwidth_smallest_period_2d<double>();
+  check_max_bandwidth_smallest_period_2d<float>();
+  check_max_bandwidth_smallest_period_3d<double>();
+  check_max_bandwidth_smallest_period_3d<float>();
+  check_admits_bandwidth_follows_smallest_period<double>();
+  check_admits_bandwidth_follows_smallest_period<float>();
+}
+
+// max_bandwidth() must reflect the current length on every call, not a value
+// cached from an earlier state.
+TEST_CASE("Periodic: max_bandwidth follows a changed period, not a cached value", "[geometry][periodic][bandwidth]")
+{
+  Periodic<double, 2> g;
+  g.length = {4.0, 4.0};
+  REQUIRE(g.is_valid());
+  CHECK(g.max_bandwidth() == 2.0);
+
+  g.length[0] = 2.0;
+  CHECK(g.max_bandwidth() == 1.0);
+
+  g.length[0] = 10.0; // axis 1 (still 4) now governs again
+  CHECK(g.max_bandwidth() == 2.0);
+}
+
 // ---------------------------------------------------------------- Periodic: validity (B2)
 
 namespace
@@ -536,12 +635,69 @@ TEST_CASE("Periodic: reduction stays bounded where raw subtraction would overflo
 
 TEST_CASE("Periodic: representation ties follow the documented convention, not a global sign", "[geometry][periodic][reduction]")
 {
-  // With L = 2, offset(0,1) is +1 (pinned in test_domain.cpp). 2 and 0 are
-  // the same periodic position, but offset(2,1) is -1: antisymmetry and
-  // representation-invariance cannot both hold at an exact tie.
+  // At an exact half-period separation both images are equally short, so the
+  // sign is a convention. Antisymmetry, representation-invariance and
+  // translation-invariance cannot all hold at a tie. The current reduction
+  // keeps antisymmetry and translation-invariance and gives up
+  // representation-invariance: for L = 2, offset(0,1) is +1 and offset(2,1)
+  // is -1.
   Periodic<double, 1> g;
   g.length[0] = 2.0;
   REQUIRE(g.is_valid());
 
   CHECK(g.offset({2.0}, {1.0})[0] == -1.0);
+}
+
+// The reduction has two boundaries: |t| = L, where the fast path hands over
+// to the std::remainder fallback, and |t| = L/2, where the minimum image
+// flips. L = 4 is a power of two, so every value here is exact, and the
+// neighbouring representable values straddle each boundary exactly.
+namespace
+{
+template <Real T> void check_reduction_boundary_neighbours()
+{
+  const T L = T{4};
+  const T below = L - std::nextafter(L, T{0});                                   // ulp just below L
+  const T above = std::nextafter(L, std::numeric_limits<T>::infinity()) - L;     // ulp just above L
+
+  Periodic<T, 2> g;
+  g.length = {L, T{-1}};
+  REQUIRE(g.is_valid());
+
+  const Point<T, 2> q{T{0}, T{0}};
+
+  // Just below L: fast path, offset is -below.
+  {
+    const Point<T, 2> p{std::nextafter(L, T{0}), T{0}};
+    CHECK(g.offset(p, q)[0] == -below);
+  }
+  // Exactly L: fast path, offset is 0.
+  {
+    const Point<T, 2> p{L, T{0}};
+    CHECK(g.offset(p, q)[0] == T{0});
+  }
+  // Just above L: first value to take the slow (std::remainder) path.
+  {
+    const Point<T, 2> p{std::nextafter(L, std::numeric_limits<T>::infinity()), T{0}};
+    CHECK(g.offset(p, q)[0] == above);
+  }
+  // Just below L/2: fast path, unchanged.
+  {
+    const T half_below = std::nextafter(L / 2, T{0});
+    const Point<T, 2> p{half_below, T{0}};
+    CHECK(g.offset(p, q)[0] == half_below);
+  }
+  // Just above L/2: fast path, minimum image flips.
+  {
+    const T half_above = std::nextafter(L / 2, L);
+    const Point<T, 2> p{half_above, T{0}};
+    CHECK(g.offset(p, q)[0] == half_above - L);
+  }
+}
+} // namespace
+
+TEST_CASE("Periodic: reduction is exact at the values adjacent to both boundaries", "[geometry][periodic][reduction]")
+{
+  check_reduction_boundary_neighbours<double>();
+  check_reduction_boundary_neighbours<float>();
 }

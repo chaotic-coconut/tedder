@@ -1,6 +1,8 @@
 # tedder: field.hpp revision plan
 
-Status: active
+Status: completed. Stage 00 is closed. This document is reference material
+describing what was decided and shipped. Where it and the header differ, the
+header is authoritative.
 
 This plan implements the contracts recorded in
 [ADR 0001](../../adr/0001-domain-periodic-contracts.md).
@@ -12,9 +14,9 @@ fixes to the reviewed
 Keep the production changes in the existing header. Do not add kernels, fitting,
 spatial indexing, I/O, dependencies, or new policy abstractions in this repair.
 
-| Revision | Contract | Tests in PLAN.md |
+| Revision | Contract | Tests in test-plan.md |
 | --- | --- | --- |
-| F1 | Floating scalar, positive constant dimension, non-throwing operations; point representation stays flexible | B1 |
+| F1 | Floating scalar, positive constant dimension, non-throwing operations; point_type restricted to `Point<scalar_type, dimension>` | B1 |
 | F2 | Explicit periodic validity; invalid configurations admit no bandwidth | B2 |
 | F3 | Guarded fast reduction and robust handling of finite outside-box coordinates | B3 |
 | F4 | Accurate lifetime, indexing, numerical, and geometry documentation | A and documentation review |
@@ -22,7 +24,7 @@ spatial indexing, I/O, dependencies, or new policy abstractions in this repair.
 Implement each behavioural revision with its matching tests. If a contract must
 change, update both plans and the affected expectations together.
 
-## F1. Tighten Domain without restricting point representation
+## F1. Tighten Domain and require `point_type` to equal `Point<scalar_type, dimension>`
 
 Add `<type_traits>` and use a single `requires` block:
 
@@ -35,7 +37,7 @@ concept Domain = requires(const G& g, const typename G::point_type& p,
   // Check constant-expression suitability before evaluating dimension > 0.
   typename std::integral_constant<std::size_t, G::dimension>;
   requires Real<typename G::scalar_type>;
-  requires G::dimension > 0;
+  requires std::integral_constant<std::size_t, G::dimension>::value > 0;
   requires std::same_as<typename G::point_type,
                         Point<typename G::scalar_type, G::dimension>>;
   { G::dimension } -> std::convertible_to<std::size_t>;
@@ -46,7 +48,14 @@ concept Domain = requires(const G& g, const typename G::point_type& p,
 };
 ```
 
-The type requirement must precede `requires G::dimension > 0`; a separate helper
+Positivity is checked on the converted value
+`std::integral_constant<std::size_t, G::dimension>::value`, not on
+`G::dimension` directly. A class-valued dimension with a constexpr conversion
+to `std::size_t` may define its own `operator>`, which need not be constexpr
+and need not agree with the converted value. Comparing the converted value
+keeps positivity and the array extent referring to the same number.
+
+The type requirement must precede the positivity requirement; a separate helper
 concept is unnecessary. Requires-expression checks stop in lexical order when
 the result is determined. [C++ requires-expression rules](https://eel.is/c++draft/expr.prim.req)
 
@@ -56,10 +65,11 @@ Require `point_type` to equal `Point<scalar_type, dimension>`, per
     requires std::same_as<typename G::point_type,
                           Point<typename G::scalar_type, G::dimension>>;
 
-Place it after `requires Real<...>` and `requires G::dimension > 0`,
-because `Point<scalar_type, dimension>` is only well-formed once both
-hold. A model spelling `point_type` as `std::array<T,D>` still passes:
-that is the same type.
+Place it after `requires Real<...>`; only that is needed, since
+`Point<scalar_type, dimension>` is well-formed once `scalar_type` satisfies
+`Real`, even when `dimension` is zero. Positivity is a separate requirement
+of `Domain`, not a condition for forming the point type. A model spelling
+`point_type` as `std::array<T,D>` still passes: that is the same type.
 
 The built-in methods already have `noexcept`; preserve them and the free helpers.
 Reject potentially throwing domain methods at the concept boundary. Zero and
@@ -144,7 +154,7 @@ Preserve these semantics:
   opposite equally valid images; do not promise invariant signs at those ties.
 - Bandwidth remains strictly below the half-period limit. This does not remove
   the public geometry operation's existing canonical tie contract.
-- The four independently specified regressions in PLAN.md B3 must pass.
+- The four independently specified regressions in test-plan.md B3 must pass.
 
 `[[likely]]` may remain, but it is a compiler hint, not a guarantee of code layout
 or speed. The supplied benchmark motivates this design; its percentages are not
@@ -213,12 +223,12 @@ runtime overflow recovery is not a promise of constant evaluation for that input
 
 ## Acceptance and handoff
 
-F1 fixtures reject unsupported domains cleanly while accepting a custom point
-representation. F2 rejects non-finite periods and reflects mutations. F3 passes
+F1 fixtures reject unsupported domains cleanly, including any point type other
+than `Point<scalar_type, dimension>`. F2 rejects non-finite periods and reflects mutations. F3 passes
 the four regressions and preserves existing geometry signs, open axes, and strict
 bandwidth limits. The three A tests pass without redefining their existing APIs.
 
-Run the Debug/Release and sanitizer checks in PLAN.md, reporting unavailable
+Run the Debug/Release and sanitizer checks in test-plan.md, reporting unavailable
 configurations honestly. Summarise API/contract changes and remaining numeric
 limits. The consumer project, assertion subprocesses, hard compile-fail harness,
 two-translation-unit check, exhaustive type matrix, and `long double` coverage
