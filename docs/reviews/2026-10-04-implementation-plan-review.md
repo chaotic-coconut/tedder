@@ -3,6 +3,21 @@
 Status: review notes, not authoritative. Nothing here is accepted until it is
 recorded in an ADR. Written in reviewer mode; no production code was changed.
 
+Outcome: the decisions are carried forward into the draft
+[ADR 0003](../adr/0003-geometry-local-frame-support.md) and
+[ADR 0004](../adr/0004-fit-results-diagnostics-errors.md). Where those ADRs
+differ from these notes, the ADRs take precedence. Changes made after the
+review:
+
+- D5: per-axis bandwidth limits are deferred. The condition is only
+  documented.
+- D14: non-finite sample values are rejected by default instead of dropped.
+- D13: the return type is `std::expected<FitSuccess, FitFailure>` (shape B).
+- D3: the SVD-of-R value is an estimate of κ₂, not an exact value.
+- D15: the weighted RMS is a fit-quality measure, not a noise estimate.
+- G8: rank invariance holds only for a fixed active set with positive weights.
+- G6: the degeneracy tests cover any conic, not only circles.
+
 Reviewed document: *tedder implementation plan after architecture discussion*
 (2026-10-04, status "proposed"). It is not in the repository; `§` numbers below
 refer to its sections.
