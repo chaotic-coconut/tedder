@@ -17,6 +17,11 @@ review:
 - D15: the weighted RMS is a fit-quality measure, not a noise estimate.
 - G8: rank invariance holds only for a fixed active set with positive weights.
 - G6: the degeneracy tests cover any conic, not only circles.
+- D11: the result parameter is `FitOrder` (`constant`, `linear`, `quadratic`;
+  default `linear`), not `DerivativeOrder`.
+
+Implemented on `main` in commit e99f6a5: D6 (`distance_squared` as a free
+function, called qualified) and the `LocalFit` result type of D11 and D12.
 
 Reviewed document: *tedder implementation plan after architecture discussion*
 (2026-10-04, status "proposed"). It is not in the repository; `§` numbers below

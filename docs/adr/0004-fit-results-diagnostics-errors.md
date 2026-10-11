@@ -3,18 +3,20 @@
 Status: proposed. Draft for the author's review; not authoritative until
 accepted. Depends on [ADR 0003](0003-geometry-local-frame-support.md).
 
-Needed before Stage 03 (degree 0 and 1 fitting).
+Implementation: the `LocalFit` result type (§1 and §2) is already on `main`,
+in commit e99f6a5. Everything else is for Stage 03 (degree 0 and 1 fitting)
+and later.
 
 ## Context
 
-`LocalFit` in `field.hpp` currently holds a value, a Jacobian, `neighbors` and
+Before e99f6a5, `LocalFit` held a value, a Jacobian, `neighbors` and
 `bandwidth`. No fitting code exists yet.
 
 The implementation plan of 2026-10-04 and its
 [review](../reviews/2026-10-04-implementation-plan-review.md) agreed on the
 following:
 
-- separate the polynomial degree from the derivative order of the result;
+- separate the polynomial degree from the derivatives the result holds;
 - return derivatives only in physical coordinates;
 - keep diagnostics outside the result;
 - keep solver evidence separate from the acceptance policy;
@@ -24,39 +26,71 @@ following:
 The author then reversed two of the review's recommendations. Non-finite
 sample values are rejected instead of dropped, and the return type is
 `std::expected<FitSuccess, FitFailure>` instead of a separate outcome struct.
+The author also chose the name `FitOrder` and the default order `linear`,
+both implemented in e99f6a5.
 
 ## Decision
 
-### 1. Degree and derivative order
+### 1. Result order and polynomial degree
 
-- **Two numbers.** `n` is the degree of the local polynomial. `K` is the
-  highest derivative order returned. `K ≤ n` always.
-- **Result type.** The result is indexed by `K`: `LocalFit<T, D, C, K>` with
-  `K ∈ {0, 1, 2}`. Any other value fails at compile time.
-- **Degree.** Fitting functions take `n` separately, constrained by `n ≥ K`.
-  At first only `n = K` is accepted.
-- **Later.** Allowing `n = K + 1` (for example a quadratic fit for a better
-  gradient near the edge of the data) must not change the result type.
-- **Naming.** "Degree" is reserved for `n`. `K` is named after derivatives,
-  for example `DerivativeOrder`.
+- **Result order.** `FitOrder` says which derivatives a result holds:
+
+  ```cpp
+  enum class FitOrder : unsigned { constant = 0, linear = 1, quadratic = 2 };
+
+  template <Real T, std::size_t D, std::size_t C, FitOrder P = FitOrder::linear>
+    requires(P <= FitOrder::quadratic)
+  struct LocalFit;
+  ```
+
+  `constant` holds the value; `linear` adds the Jacobian; `quadratic` adds the
+  Hessians. Because the constraint is on the primary template, naming an
+  order above `quadratic` fails where the type is named. Without the
+  constraint, the result would only be an incomplete type, which can still be
+  named.
+- **Default `linear`.** The cheapest fit, degree 0, is a weighted average and
+  does not reproduce linear fields. With `f = 2 + 3x` and `h = 0.1`, it erred
+  by 9e-3 to 5.5e-2 wherever the neighbourhood was not symmetric (uneven
+  sampling, the edge of the data). Degree 1 was exact to rounding. Once the
+  polynomial has degree 1, returning its Jacobian costs only `C·D` divisions.
+- **Degree is separate.** Fitting functions take the polynomial degree `n`
+  separately, constrained so that `n` is at least the order. At first only
+  `n` equal to the order is accepted. Allowing one degree higher later must
+  not change the result type. One example is a quadratic fit returning a
+  `linear` result, for a better gradient at the edge of the data.
+- **Naming caveat.** The enumerators read like polynomial degrees, but they
+  describe what the result holds. If a higher degree is allowed later, a
+  `FitOrder::linear` result could come from a quadratic fit. Revisit the
+  names at that point (see open points).
+- **Generic code.** `WithJacobian<P>` and `WithHessians<P>` are named concepts,
+  with `WithHessians` built from `WithJacobian`.
+  - Overloads constrained by them are ordered by subsumption, so a quadratic
+    result picks the Hessian overload.
+  - Two overloads constrained by the raw comparisons `(P >= linear)` and
+    `(P >= quadratic)` are ambiguous for a quadratic result, on GCC 13 and on
+    Clang 19.
+  - The specializations do not inherit from one another; generic code
+    constrains on the order instead.
 
 ### 2. Result contents
 
 `LocalFit` holds the reconstructed field at `x₀`, in physical coordinates
 only.
 
-| `K` | Members |
+| `FitOrder` | Members |
 | --- | --- |
-| 0 | `value`: `Value<T, C>` |
-| 1 | adds `jacobian`: `Matrix<T, C, D>`, with `jacobian[c, d] = ∂F_c/∂x_d` (unchanged) |
-| 2 | adds `hessians`: one `D × D` matrix per component, with `hessians[c][i, j] = ∂²F_c/∂x_i∂x_j` |
+| `constant` | `value`: `Value<T, C>` |
+| `linear` | adds `jacobian`: `Matrix<T, C, D>`, with `jacobian[c, d] = ∂F_c/∂x_d` (unchanged) |
+| `quadratic` | adds `hessians`: `std::array<Matrix<T, D, D>, C>`, with `hessians[c][i, j] = ∂²F_c/∂x_i∂x_j` |
 
 - **Removed fields.** `neighbors` and `bandwidth` are removed. Counts are
   diagnostics (§6), and the bandwidth is an input the caller already has.
 - **Nothing else.** The result holds no residuals, ranks, condition estimates,
   counts or derived quantities such as divergence or vorticity.
-- **Bitwise symmetry.** Each Hessian is bitwise symmetric:
+- **Bitwise symmetry.** Every fit produces bitwise symmetric Hessians:
   `hessians[c][i, j] == hessians[c][j, i]`.
+  - This is a duty of the fitting code, not of the type. A `LocalFit` filled by
+    hand can be asymmetric.
   - The physical transform `H_x = Bᵀ H_ξ B` (ADR 0003) computes the entries
     with `i ≤ j` and copies them to `j > i`.
   - Computed independently, the two triangles can differ by a few ulps; this
@@ -168,7 +202,7 @@ solver evidence, residuals):
 // Conceptual; names and layout are open.
 std::expected<FitSuccess, FitFailure>
 
-struct FitSuccess { LocalFit<T, D, C, K> fit;  /* success diagnostics */ };
+struct FitSuccess { LocalFit<T, D, C, P> fit;  /* success diagnostics */ };
 struct FitFailure { FitError error;            /* failure diagnostics */ };
 ```
 
@@ -244,10 +278,23 @@ Toolchain:
 
 ## Consequences
 
-- **`field.hpp`.** `LocalFit` gains `K` and Hessians and loses `neighbors` and
-  `bandwidth`.
-- **`tests/test_types.cpp`.** The checks of `neighbors` and `bandwidth` go,
-  and the shape tests extend to `K = 0` and `K = 2`.
+Done for §1 and §2 in commit e99f6a5:
+
+- **`field.hpp`.** `FitOrder`, the constrained `LocalFit` primary template with
+  three specializations, `WithJacobian` and `WithHessians`. `neighbors` and
+  `bandwidth` are removed.
+- **`tests/test_types.cpp`.** These tests cover the result type, for `double`
+  and `float`:
+  - the default order is `linear`;
+  - each order has the right members;
+  - the concepts give the right truth table;
+  - an order above `quadratic` is rejected, checked through a concept rather
+    than a compile-fail harness;
+  - Hessian shapes with `D ≠ C`, every entry independently addressable, and
+    value-initialised zeros.
+
+Still to do:
+
 - **New fitting header.** It depends on Eigen; how CMake finds Eigen is an
   open point.
 - **CI and README.** The CI and README changes from the toolchain list in §7.
@@ -273,7 +320,13 @@ Toolchain:
 
 ## Rejected alternatives
 
-- **Indexing `LocalFit` by polynomial degree.** It rules out `n = K + 1`.
+- **Defining `LocalFit`'s parameter as the polynomial degree.** It would rule
+  out a higher-degree fit returning fewer derivatives.
+- **Default order `constant`.** Cheapest, but biased wherever the
+  neighbourhood is not symmetric (§1).
+- **Inheritance between the `LocalFit` specializations.** It would allow
+  slicing and complicate aggregate initialisation. Generic code constrains on
+  the order instead.
 - **Diagnostics inside `LocalFit`.** That mixes reconstructed data with solver
   facts.
 - **An unconditional `FitFailure::numerical_rank`.** No rank exists before
@@ -289,10 +342,10 @@ Toolchain:
 
 ## Open points
 
-- **Names.** The derivative-order parameter, `FitSuccess`, `FitFailure`, the
-  diagnostic structs and the Hessian storage (for example
-  `std::array<Matrix<T, D, D>, C>`). Also whether `K` has a default, which
-  would keep the spelling `LocalFit<T, D, C>`.
+- **Names.** `FitSuccess`, `FitFailure` and the diagnostic structs. Also
+  whether the `FitOrder` enumerators should describe derivatives rather than
+  degrees, which becomes pressing once a higher degree than the order is
+  allowed (§1).
 - **`τ`.** Its value for each scalar type, from the degeneracy experiments.
 - **Eigen in CMake.** The minimum Eigen version, and whether to use
   `find_package(Eigen3 CONFIG)`, `FetchContent`, or both.

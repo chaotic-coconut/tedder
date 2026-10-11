@@ -6,7 +6,9 @@ the `Domain` concept in [ADR 0001](0001-domain-periodic-contracts.md) F1.
 Everything else in ADR 0001 and [ADR 0002](0002-point-type-restriction.md)
 stands.
 
-Needed before Stage 01 (kernels) and Stage 02 (neighbour search).
+Implementation: §1 is already on `main`, in commit e99f6a5. §2 describes the
+current behaviour. §3 to §5 are still to be implemented in Stage 01 (kernels)
+and Stage 02 (neighbour search).
 
 ## Context
 
@@ -33,8 +35,12 @@ geometric contracts that were undefined or could disagree:
 - A free function `distance_squared(g, p, q)` returns the sum of the squared
   components of `g.offset(p, q)`, summed in axis order `0 … D−1`.
 - `distance(g, p, q)` is the square root of that free function.
-- For `Euclidean` and `Periodic` nothing changes numerically. Both member
-  functions already compute the same sum in the same order.
+- Library code calls it qualified, as `tedder::distance_squared`. An
+  unqualified call would also find a function of the same name declared next
+  to a user's domain type, and an exact non-template match would win over
+  tedder's template, so the library would silently use the user's metric.
+- For `Euclidean` and `Periodic` nothing changes numerically. Their former
+  member functions computed the same sum in the same order.
 - All other `Domain` requirements are unchanged.
 
 | Part | Responsible for |
@@ -173,20 +179,29 @@ Consequences:
 
 ## Consequences
 
-- **`field.hpp`.**
-  - Drop `distance_squared` from the `Domain` concept and remove the member
-    functions.
-  - Add the free `distance_squared`; `distance` calls it.
+Done for §1 in commit e99f6a5:
+
+- **`field.hpp`.** `distance_squared` is gone from the `Domain` concept and
+  from `Euclidean` and `Periodic`. The free `distance_squared` sums the squared
+  offset components, and `distance` calls it as `tedder::distance_squared`.
 - **`tests/test_domain_contract.cpp`.**
-  - Remove the fixtures `MissingDistanceSquared`, `DistanceSquaredWrongReturn`,
-    `DistanceSquaredNotConst` and `DistanceSquaredNotNoexcept`. They would now
-    satisfy `Domain`.
-  - Remove the unused `distance_squared` member from the other fixtures, so
-    each one still isolates a single defect.
-- **`tests/test_domain.cpp`, `tests/test_geometry.cpp`.** Member calls become
-  free-function calls. `test_geometry.cpp` already compares against an
-  independently summed squared offset.
+  - The fixtures `MissingDistanceSquared`, `DistanceSquaredWrongReturn`,
+    `DistanceSquaredNotConst` and `DistanceSquaredNotNoexcept` are removed,
+    because they now satisfy `Domain`. The remaining fixtures no longer carry a
+    `distance_squared` member.
+  - Two tests guard the decision. "a member distance_squared is ignored by the
+    free functions" uses a domain whose own member returns a wrong value.
+    "distance ignores an ADL-visible distance_squared overload" puts a function
+    of the same name next to a domain type. Making the call in `distance`
+    unqualified makes the second test fail.
+- **`tests/test_domain.cpp`, `tests/test_geometry.cpp`.** Member calls became
+  free-function calls. `test_geometry.cpp` still compares against an
+  independently summed squared offset, with exact equality.
 - **`README.md`.** Unaffected; it uses only `distance` and `max_bandwidth`.
+
+Still to do:
+
+- §3 to §5 in Stages 01 and 02. Their stage files carry the tests.
 - **On acceptance.** Update ADR 0001's status line, as was done for ADR 0002.
   Mark this ADR accepted in `docs/INDEX.md`, and link it from the Stage 01 and
   Stage 02 rows of `ROADMAP.md`.
@@ -209,6 +224,10 @@ Consequences:
 
 ## Open points
 
+- Whether to rename `max_bandwidth()`, for example to `bandwidth_limit()`. The
+  value is a strict limit that is itself not admissible, and "max" suggests
+  otherwise. It is optional; if done, do it before more code depends on the
+  name.
 - Whether non-finite sample coordinates stay a precondition of fitting or
   become a checked failure. ADR 0004 covers non-finite values only.
 - Whether the Stage 02 brute-force backend prefilters with an enlarged radius
