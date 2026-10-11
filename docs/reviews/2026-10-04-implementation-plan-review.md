@@ -20,6 +20,15 @@ review:
 - D11: the result parameter is `FitOrder` (`constant`, `linear`, `quadratic`;
   default `linear`), not `DerivativeOrder`.
 
+Corrected after the Codex review of PR #2. The ADRs carry the fixes; the
+body of these notes is left as written.
+- D2 and D3: `R` is `m × m` with `m = C(D+n, n)`; `m ≤ 10` holds only up to
+  quadratic fits in 3D.
+- D8: `ξ` avoids overflow and underflow only near the support boundary.
+- D15: the weighted RMS is invariant to weight scaling only in exact
+  arithmetic; compute it with weights divided by the largest weight. A
+  zero-degrees-of-freedom residual is zero only in exact arithmetic.
+
 Implemented on `main` in commit e99f6a5: D6 (`distance_squared` as a free
 function, called qualified) and the `LocalFit` result type of D11 and D12.
 
