@@ -178,17 +178,32 @@ Diagnostics are kept outside `LocalFit`. They contain:
 - **Residual quality, per component.**
 
   ```text
-  weighted_residual_rms = sqrt(Σ wᵢ eᵢ² / Σ wᵢ),   eᵢ = p(ξᵢ) − yᵢ
+  weighted_residual_rms = sqrt(Σ wᵢ eᵢ² / Σ wᵢ) = ‖√w ∘ e‖₂ / ‖√w‖₂,   eᵢ = p(ξᵢ) − yᵢ
   ```
 
-  The sums run over the active samples, with every weight first divided by
-  the largest active weight. The scaled weights then lie in `(0, 1]`, and
-  their sum lies between 1 and the active count. Overflow can then come only
-  from the residuals themselves, not from the kernel's scale. Without that
-  step, three `float` weights of `max()/2` overflow both sums and give `NaN`
-  instead of 1.
+  The sums run over the active samples. Compute it as `‖s ∘ e‖₂ / ‖s‖₂` with
+  `sᵢ = √wᵢ / √w_max`. Both norms use an overflow-safe 2-norm (a scaled sum of
+  squares, such as Eigen's `stableNorm()` or LAPACK's `?nrm2`).
+  - Taking square roots halves the exponent. So for any positive finite
+    `float` or `double` weights (IEEE binary32 or binary64), every `sᵢ` lies
+    in `(0, 1]`, and no active weight is rounded away.
+    - The worst case is the smallest subnormal weight against the largest
+      finite one: `sᵢ` is about 2.0e-42 in `float` and 1.7e-316 in `double`.
+    - At such extreme ratios `sᵢ` is subnormal and carries fewer significant
+      bits, so that term has reduced relative accuracy, but it is not lost.
+  - The largest `sᵢ` is exactly 1, so `‖s‖₂` is at least 1 up to rounding,
+    and the denominator cannot underflow. The scaled norm also keeps large residuals from
+    overflowing when squared.
+  - Both simpler forms fail, as the Codex reviews of PRs #2 and #3 showed:
+    - Summing `wᵢ eᵢ²` and `wᵢ` directly overflows for three `float` weights
+      of `max()/2` and gives `NaN` instead of 1.
+    - Dividing the weights themselves by the largest one can round a tiny
+      weight to zero. With `float` weights `(min(), max())` and residuals `(1e19, 0)`
+      it reports 0 instead of about 5.9e-20.
+    - The form above gives 1 and 5.9e-20, matching the exact values.
   - In exact arithmetic the value does not change when all weights are
-    rescaled together. In floating point it changes only by rounding.
+    rescaled together. In floating point it changes only by rounding, as long
+    as the rescaled weights stay positive and finite.
   - It measures fit quality. Kernel weights localise the fit and are not
     inverse variances, so it is not a calibrated estimate of measurement
     noise.
