@@ -135,10 +135,20 @@ rᵢ = g.offset(xᵢ, x₀)    physical displacement, wrapped
 - **No exact boundary.** Four candidate formulas were compared against exact
   arithmetic on 100,000 points near the boundary. Every one misclassified some
   points within about 3 ulps of `q = 1`.
-- **Why this formula.** The canonical one is the kernel's own input, does not
-  overflow or underflow for extreme `h`, and needs no square root for rejected
-  points. "Authoritative" means every caller uses this one formula, not that
-  it is exact.
+- **Why this formula.** The canonical one is the kernel's own input, and it
+  needs no square root for rejected points. "Authoritative" means every
+  caller uses this one formula, not that it is exact.
+- **Range.** Near the boundary, every component of `ξ` has magnitude at most
+  about 1, whatever the scale of `h`. So `ξ · ξ` cannot overflow there, and a
+  component small enough to underflow is far too small to change the decision.
+  Elsewhere the range is limited:
+  - Far outside the support, `ξ · ξ` can overflow to infinity. The sample is
+    still rejected, which is the right answer. Example: `float`, `h` the
+    smallest normal value, `r = 1`.
+  - Far inside the support, a component of `ξ` can underflow to zero, and the
+    fit then treats that sample as lying at `x₀` along that axis. Example:
+    `float`, `h` the largest finite value, `r` the smallest normal value,
+    where `r / h` rounds to 0 instead of 3.5e-77.
 - **Half-period ties.** In exact arithmetic, a sample exactly half a period
   away has `q ≥ L / (2h) > 1`. The tie convention of ADR 0001 F3 therefore
   never places an image inside the support.

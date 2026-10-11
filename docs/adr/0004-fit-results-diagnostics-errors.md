@@ -159,7 +159,7 @@ The solver reports facts. The policy in §7 decides what they mean.
   | Provenance | Value | Meaning |
   | --- | --- | --- |
   | `cpqr` | `|r_11 / r_mm|` | A lower bound on `κ₂(A)` that can be far too low (Kahan 30×30: 3.42 against 9.88e3). Never reported as `κ₂`. |
-  | `svd` | `σ_max / σ_min` of the `m × m` factor `R` | An estimate of `κ₂(A)`. `A` and `R` have the same singular values, and `m ≤ 10`. Accuracy falls as `κ₂` approaches `1/ε(T)`. |
+  | `svd` | `σ_max / σ_min` of the `m × m` factor `R` | An estimate of `κ₂(A)`. `A` and `R` have the same singular values. `R` is `m × m` with `m = C(D+n, n)`, for example 10 for a quadratic fit in 3D, so the SVD adds O(m³) work to the O(N·m²) QR. Accuracy falls as `κ₂` approaches `1/ε(T)`. |
   | none | — | No estimate computed. |
 
   Measured in `double` on matrices built with a given `κ₂`, the `svd`
@@ -181,13 +181,21 @@ Diagnostics are kept outside `LocalFit`. They contain:
   weighted_residual_rms = sqrt(Σ wᵢ eᵢ² / Σ wᵢ),   eᵢ = p(ξᵢ) − yᵢ
   ```
 
-  The sums run over the active samples. The value does not change when all
-  weights are rescaled together. It measures fit quality. Kernel weights
-  localise the fit and are not inverse variances, so it is not a calibrated
-  estimate of measurement noise.
+  The sums run over the active samples, with every weight first divided by
+  the largest active weight. The scaled weights then lie in `(0, 1]`, and
+  their sum lies between 1 and the active count. Overflow can then come only
+  from the residuals themselves, not from the kernel's scale. Without that
+  step, three `float` weights of `max()/2` overflow both sums and give `NaN`
+  instead of 1.
+  - In exact arithmetic the value does not change when all weights are
+    rescaled together. In floating point it changes only by rounding.
+  - It measures fit quality. Kernel weights localise the fit and are not
+    inverse variances, so it is not a calibrated estimate of measurement
+    noise.
 - **Degrees of freedom.** `active − numerical rank`, derived rather than
-  stored. At zero, the residual is zero by construction and carries no
-  information.
+  stored. At zero, the residual is zero in exact arithmetic. The computed
+  value is rounding noise and carries no information, so tests must not
+  require it to be exactly zero.
 
 There are two diagnostic types, which share their sub-structures (counts,
 solver evidence, residuals):
