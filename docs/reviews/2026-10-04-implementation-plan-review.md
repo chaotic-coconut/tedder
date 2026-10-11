@@ -26,7 +26,9 @@ body of these notes is left as written.
   quadratic fits in 3D.
 - D8: `ξ` avoids overflow and underflow only near the support boundary.
 - D15: the weighted RMS is invariant to weight scaling only in exact
-  arithmetic; compute it with weights divided by the largest weight. A
+  arithmetic. Compute it as `‖s ∘ e‖₂ / ‖s‖₂` with `sᵢ = √wᵢ / √w_max` and an
+  overflow-safe norm. Dividing the weights themselves by the largest one, as
+  first proposed, can round a tiny weight to zero (Codex review of PR #3). A
   zero-degrees-of-freedom residual is zero only in exact arithmetic.
 
 Implemented on `main` in commit e99f6a5: D6 (`distance_squared` as a free
