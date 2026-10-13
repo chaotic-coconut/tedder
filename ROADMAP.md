@@ -14,3 +14,9 @@ Later stages are planned:
 | 05 — nanoflann backend | kd-tree backend | Not yet present |
 | 06 — Derived quantities | Divergence, vorticity, and strain | Not yet present |
 | 07 — Optional I/O and policies | NumPy I/O and explicitly accepted policies | Not yet present |
+
+Unscheduled candidates are not planned work:
+
+| Candidate | When to reconsider | Notes |
+| --- | --- | --- |
+| Spherical scalar reconstruction | After Stage 06, and only for a concrete dataset with stated derivative-accuracy requirements | [ADR 0003, "Out of scope: spherical domains"](docs/adr/0003-geometry-local-frame-support.md#out-of-scope-spherical-domains) |

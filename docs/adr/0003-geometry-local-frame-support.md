@@ -187,6 +187,56 @@ Consequences:
   the bounding radius `‖B⁻¹‖₂ = 1 / σ_min(B)`. This is recorded for the ADR
   that introduces such a frame.
 
+## Out of scope: spherical domains
+
+Spherical domains are an unscheduled candidate (see `ROADMAP.md`), not part
+of this decision. A spherical domain would need its own ADR. These contracts
+of this ADR, and the result types of ADR 0004, would have to be revised:
+
+1. **Point dimension and fit dimension.** A point on the sphere is stored as
+   3 coordinates (a unit vector), but the polynomial basis needs 2 independent
+   local coordinates. `offset` could return the log map as a 3-component
+   tangent vector, but those vectors all lie in one plane, so a polynomial
+   basis of degree 1 or higher in all 3 coordinates gives a rank-deficient
+   design matrix. The meaning of `D` throughout fitting and results would
+   have to change, not only `point_type`.
+2. **`offset` is no longer total.** Today `offset` is defined for every pair
+   of points. The log map is not defined at the antipode, although the
+   geodesic distance there is. A search backend, for example brute force, can
+   return such a point before the support test rejects it. The §4 test would
+   reject a NaN offset, but that is not a contract. A spherical design needs
+   explicit out-of-chart behaviour, such as rejecting by geodesic distance
+   before evaluating the log map. The support radius is a physical length,
+   tied to the sphere's radius.
+3. **What "physical coordinates" means.** For Cartesian domains, derivatives
+   are returned in Cartesian components. On a sphere, a gradient is a tangent
+   vector. It can be given as 2 components in a tangent basis, but no
+   continuous tangent frame covers the whole sphere, so east/north breaks
+   down at the poles. Or it can be given in ambient form, as a 3-component
+   tangent gradient and a 3×3 Hessian acting on tangent directions. This is
+   undecided, and today's result types do not promise to cover either form.
+4. **Scalar channels and vector fields differ.** A map from the sphere to
+   `R^C` can be fitted component by component. A tangent vector field has its
+   samples in different tangent spaces and needs a transport rule before they
+   can be combined. Its second covariant derivative is not symmetric in
+   general: the two orders differ by the curvature acting on the vector. So
+   the symmetric per-component Hessians of ADR 0004 cannot take on that
+   meaning. Scalar fields would come first; tangent vectors and their first
+   derivatives later; vector second derivatives would need their own
+   definition.
+
+What is already known: in geodesic normal coordinates centred at the
+evaluation point, the connection coefficients vanish there. So the coordinate
+gradient and Hessian of `f ∘ exp` at the centre are the intrinsic gradient and
+covariant Hessian, and the trace of that Hessian is the Laplace–Beltrami
+operator applied to `f` at that point. This was checked symbolically for
+`f = xy + 0.3z` on the unit sphere. It is an identity at the centre, not a
+statement about fitting accuracy at a finite bandwidth: `f ∘ exp` is
+generally not a polynomial.
+
+The sphere search in nanoflann 2.0 is a backend option only. It could serve
+the completeness contract of §5, and it solves none of the issues above.
+
 ## Consequences
 
 Done for §1 in commit e99f6a5:
