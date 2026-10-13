@@ -71,6 +71,8 @@ const bool valid = tedder::admits_bandwidth(domain, 0.5);
 
 Here the separation along `x` is `0.2`, because the shorter path crosses the periodic boundary. A bandwidth of exactly `1.0` is not admitted.
 
+`Periodic` implements Cartesian geometry with selected axes identified periodically. Applied directly to latitude and longitude, with longitude periodic, it gives a flat cylinder in degree units: it ignores the convergence of meridians, so its distances and derivatives are not spherical ones.
+
 ## Name
 
 A tedder spreads cut hay over its surroundings. A reconstruction kernel does something similar with the influence of each sample.
