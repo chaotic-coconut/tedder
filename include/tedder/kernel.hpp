@@ -18,7 +18,7 @@ namespace tedder
   // - equal q give equal weights, and a call writes nothing.
   // The concept cannot tell q from q * q. Kernels take q.
   template <class K, class T>
-  concept Kernel = Real<T> && requires(const K &k, T q)
+  concept Kernel = Real<T> && requires(const K &k,const T q)
   {
     { k(q) } noexcept -> std::same_as<T>;
   };
@@ -30,7 +30,7 @@ namespace tedder
   struct WendlandC2
   {
     template <Real T>
-    static constexpr T operator()(T q) noexcept
+    static constexpr T operator()(const T q) noexcept
     {
       assert(q >= T{0} && q <= T{1});
       const T t = T{1} - q;
@@ -44,7 +44,7 @@ namespace tedder
   struct WendlandC4
   {
     template <Real T>
-    static constexpr T operator()(T q) noexcept
+    static constexpr T operator()(const T q) noexcept
     {
       assert(q >= T{0} && q <= T{1});
       const T t = T{1} - q;
