@@ -22,7 +22,13 @@ Out of scope:
 - the local frame, `q²` and the candidate test (Stage 02);
 - neighbour search (Stage 02);
 - weights inside a fit, and counting active samples (Stage 03);
-- kernel derivatives, and kernels that are not compactly supported.
+- kernel derivatives, and kernels that are not compactly supported;
+- kernels other than Wendland C2 and C4. Wendland C6 and Epanechnikov are
+  possible later additions, and neither would change the concept.
+  Epanechnikov, `1 − q²`, would need the factored form `(1 − q)(1 + q)`.
+  Computed as `1 − q·q`, its relative error near `q = 1` reached 724
+  `epsilon` in `float` and about 1.1e7 `epsilon` in `double` in a check
+  against exact values; the factored form stayed below 1 `epsilon`.
 
 `field.hpp` does not change.
 
@@ -67,10 +73,11 @@ Checked symbolically with SymPy, for both kernels:
 - the first non-zero derivative at `q = 1` has order 4 (C2) or 6 (C4), so the
   zero extension beyond the support is smoother than the centre.
 
-Proposed shape, for the author to decide: one struct per kernel, for example
-`WendlandC2`, with a member template `template <Real T> constexpr T
-operator()(T q) const noexcept`. One kernel then serves `float` and `double`.
-The precondition is asserted, as in `Periodic::offset`.
+Shape, as chosen by the author: one struct per kernel, `WendlandC2` and
+`WendlandC4`, each with a static member template `template <Real T> static
+constexpr T operator()(T q) noexcept` (the C++23 static call operator). One
+kernel serves `float` and `double`, and the type has no state, which matches
+ADR 0003 §4, item 6. The precondition is asserted, as in `Periodic::offset`.
 
 ### Numerical requirements
 
@@ -86,14 +93,30 @@ The precondition is asserted, as in `Periodic::offset`.
   `(1 − q)ᵏ` of the factored forms stay normal. For tiny `q`, terms such as
   `4q` and `q²` can still be subnormal or round to 0. They enter only sums
   that also contain a term of at least 1, so their absolute error, a small
-  multiple of the smallest subnormal, is negligible next to those sums. At `q` equal to the
-  smallest subnormal and to `min()`, both kernels return exactly 1 in
-  `float` and `double`. Below the threshold, gradual underflow may cost
-  relative accuracy, and only the non-negative and finite requirement
-  applies. In a check against exact rational values at about 25,000 points,
-  including the 5,000 largest values below 1, the factored forms stayed
-  within 3.0 (C2) and 5.6 (C4) `epsilon` for `float`, and 1.9 and 2.9 for
-  `double`. These are observations, not bounds.
+  multiple of the smallest subnormal, is negligible next to those sums. At
+  `q` equal to the smallest subnormal and to `min()`, both kernels return
+  exactly 1 in `float` and `double`. Below the threshold, gradual underflow
+  may cost relative accuracy, and only the non-negative and finite
+  requirement applies.
+- **Evaluation.** With `t = 1 − q`:
+  - C2: `t2 = t·t`, then `t2 · t2 · (4q + 1)`;
+  - C4: `t3 = t·t·t`, then `t3 · t3 · (c·q·q + 6q + 1)`, where
+    `c = 35/3` is a `constexpr` constant. This removes the run-time division
+    by 3, and the polynomial factor is exactly 1 at `q = 0`.
+
+  First-order rounding-error bounds, with `u = epsilon / 2`:
+
+  | Kernel | `q ≥ 1/2` (`t` exact) | `q < 1/2` | Test tolerance `c` |
+  | --- | --- | --- | --- |
+  | C2 | 5u | 9u | 5 |
+  | C4 | 11u | 17u | 9 |
+
+  Each tolerance adds half an `epsilon` for the rounding of the expected
+  value. Contracting a multiply and an add into an FMA only removes
+  roundings, so the bounds still hold. In a check against exact rational
+  values at about 45,000 points, including the 5,000 largest values below 1,
+  the largest errors were 3.2 (C2) and 5.3 (C4) `epsilon` in `float`, and 2.2
+  and 2.7 in `double`. These are observations, not bounds.
 - **Underflow.** At the largest `float` below 1, C4 gives about 8.37e-43, a
   subnormal number. That is allowed: ADR 0003 §4 lets a weight round towards
   0, and the fitter then treats the sample as inactive. In `double` both
@@ -151,19 +174,16 @@ That rule lives in ADR 0003 §4, item 1, not in a test.
 For each kernel:
 
 - **Ends.** `w(1) == 0` exactly, as ADR 0003 §4 requires, and `w(0) == 1`
-  exactly. Both hold when the formulas in the table are evaluated as
-  written: at `q = 1` the factor `1 − q` is exactly 0, and at `q = 0` the
-  factors are exactly 1 and 3, and `3 / 3` is exactly 1.
+  exactly. Both hold for the evaluation above: at `q = 1` the factor `1 − q`
+  is exactly 0, and at `q = 0` it is exactly 1 and each polynomial factor is
+  exactly 1.
 - **Reference values.** A table of `q` values, including `1/2`, whose exact
   weights lie above the relative-accuracy threshold, with the expected
   weights hard-coded as literals. Compute them offline in exact
   rational arithmetic from the expanded polynomial, so the test does not
   repeat the implementation's floating-point expression. Compare with a
-  relative tolerance of `c · epsilon`. Derive `c` from a first-order
-  rounding-error bound for the evaluation order the author chooses, and
-  record the derivation in the test. The expected value itself carries
-  about half an `epsilon` of rounding in either type, and `c` must include
-  it.
+  relative tolerance of `c · epsilon`, with `c = 5` for C2 and `c = 9` for
+  C4 (see Evaluation), and record the derivation in the test.
 - **Non-negative and finite.** On a grid over `[0, 1]`, and on the 2,000
   largest values below 1 (stepping down with `std::nextafter`). This is the
   test the expanded C2 polynomial fails.
@@ -195,9 +215,6 @@ Not tested at runtime, and why:
 
 ## Open points
 
-- The kernel names, and whether Stage 01 ships C2 and C4 only. C6,
-  `(1 − q)⁸ (32q³ + 25q² + 8q + 1)`, would be a third model. In `float` it
-  rounds to 0 at the largest value below 1.
 - Whether `kernel.hpp` includes all of `field.hpp` only for `Real`, or `Real`
   moves to a smaller header later.
 - Whether the concept's parameter becomes `const T q`. In the draft, `q` is a
