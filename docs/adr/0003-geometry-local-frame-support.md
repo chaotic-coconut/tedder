@@ -1,10 +1,9 @@
 # ADR 0003 — geometry, local frame and support
 
-Status: proposed. Draft for the author's review; not authoritative until
-accepted. On acceptance it supersedes the `distance_squared` requirement of
-the `Domain` concept in [ADR 0001](0001-domain-periodic-contracts.md) F1.
-Everything else in ADR 0001 and [ADR 0002](0002-point-type-restriction.md)
-stands.
+Status: accepted on 2026-10-17, at the close of Stage 01. Supersedes the
+`distance_squared` requirement of the `Domain` concept in
+[ADR 0001](0001-domain-periodic-contracts.md) F1. Everything else in ADR 0001
+and [ADR 0002](0002-point-type-restriction.md) stands.
 
 Implementation: §1 is already on `main`, in commit e99f6a5. §2 describes the
 current behaviour. The kernel contract of §4 was implemented in Stage 01
@@ -319,9 +318,6 @@ Still to do:
 
 - The rest of §3 to §5 in Stages 02 and 03. Their stage files will carry the
   tests.
-- **On acceptance.** Update ADR 0001's status line, as was done for ADR 0002.
-  Mark this ADR accepted in `docs/INDEX.md`, and link it from the Stage 02 row
-  of `ROADMAP.md` (Stage 01 is complete and no longer has a row).
 
 ## Rejected alternatives
 

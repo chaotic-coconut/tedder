@@ -1,8 +1,9 @@
 # tedder — decisions on the field.hpp revision (F1–F4)
 
 Status: accepted, with corrections. The `point_type` decision is superseded
-by [ADR 0002](0002-point-type-restriction.md). The F3 fast-path guard was
-later simplified; see
+by [ADR 0002](0002-point-type-restriction.md), and the `distance_squared`
+requirement of F1 by [ADR 0003](0003-geometry-local-frame-support.md). The
+F3 fast-path guard was later simplified; see
 [field-plan.md](../stages/00-foundation/field-plan.md) F3 for the shipped
 form. Two claims in the body are corrected in the Corrections section at
 the end. All other decisions stand.
