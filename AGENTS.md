@@ -14,6 +14,8 @@
 - Run the smallest relevant checks while working and report commands actually run.
 - Do not claim numerical identities or guarantees without support from the
   applicable contract and representation.
+- Use American spelling in code: identifiers, header and file names. Prose
+  in the documentation may stay British.
   
 ## Review guidelines
 
