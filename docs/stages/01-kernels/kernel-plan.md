@@ -6,8 +6,9 @@ once [ADR 0003](../../adr/0003-geometry-local-frame-support.md) is accepted.
 This plan implements the kernel contract of ADR 0003 §4: the kernel takes
 `q`, its precondition is `0 ≤ q ≤ 1`, `w(1) = 0`, the result is finite and
 non-negative, it is positive inside the support in exact arithmetic, it
-carries no normalising constant, and it is equality-preserving. The ADR is
-authoritative; this plan does not repeat its reasons.
+carries no normalising constant, and it is equality-preserving and free of
+side effects. The ADR is authoritative; this plan does not repeat its
+reasons.
 
 ## Scope
 
@@ -88,7 +89,7 @@ The precondition is asserted, as in `Periodic::offset`.
   including the 5,000 largest values below 1, the factored forms stayed
   within 3.0 (C2) and 5.6 (C4) `epsilon` for `float`, and 1.9 and 2.9 for
   `double`. These are observations, not bounds.
-- **Underflow.** At the largest `float` below 1, C4 gives 2.5e-42, a
+- **Underflow.** At the largest `float` below 1, C4 gives about 8.37e-43, a
   subnormal number. That is allowed: ADR 0003 §4 lets a weight round towards
   0, and the fitter then treats the sample as inactive. In `double` both
   kernels stay normal there.
