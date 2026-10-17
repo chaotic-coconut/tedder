@@ -82,8 +82,13 @@ The precondition is asserted, as in `Periodic::offset`.
   rounding error from that subtraction.
 - **Relative accuracy.** Where the exact weight is at least
   `min() / epsilon()` (from `std::numeric_limits<T>`), the relative error is
-  a small multiple of `epsilon`. Above that threshold, no intermediate result
-  of the factored forms is subnormal. Below it, gradual underflow may cost
+  a small multiple of `epsilon`. Above that threshold, the factors
+  `(1 − q)ᵏ` of the factored forms stay normal. For tiny `q`, terms such as
+  `4q` and `q²` can still be subnormal or round to 0. They enter only sums
+  that also contain a term of at least 1, so their absolute error, a small
+  multiple of the smallest subnormal, is negligible next to those sums. At `q` equal to the
+  smallest subnormal and to `min()`, both kernels return exactly 1 in
+  `float` and `double`. Below the threshold, gradual underflow may cost
   relative accuracy, and only the non-negative and finite requirement
   applies. In a check against exact rational values at about 25,000 points,
   including the 5,000 largest values below 1, the factored forms stayed
