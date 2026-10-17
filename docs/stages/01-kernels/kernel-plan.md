@@ -127,14 +127,18 @@ ADR 0003 §4, item 6. The precondition is asserted, as in `Periodic::offset`.
 
 ## K2. The concept
 
-The syntactic requirements, as drafted by the author:
+The syntactic requirements, as written by the author:
 
 ```cpp
 template <class K, class T>
-concept Kernel = Real<T> && requires(const K &k, T q) {
+concept Kernel = Real<T> && requires(const K &k, const T q) {
   { k(q) } noexcept -> std::same_as<T>;
 };
 ```
+
+The call is checked with a `const T`, so a kernel that takes `T&`, and could
+modify the caller's `q`, does not satisfy the concept. Kernels that take `T`
+or `const T&` do.
 
 `T` is a parameter of the concept rather than a member type of the kernel,
 so one generic kernel can model `Kernel<K, float>` and `Kernel<K, double>`.
@@ -163,7 +167,9 @@ Compile-time checks, for `T` = `float` and `double`:
   - a call operator that is not `noexcept`, including a lambda without
     `noexcept`;
   - a wrong return type, such as a `float` kernel that returns `double`;
-  - a non-`const` call operator.
+  - a non-`const` call operator;
+  - a parameter taken by non-`const` reference.
+- A kernel taking `const double&` satisfies `Kernel<K, double>`.
 
 Fixtures declare their return types. With a deduced `auto` return type,
 checking the concept instantiates the body, and an ill-formed body becomes a
@@ -220,8 +226,3 @@ Not tested at runtime, and why:
 
 - Whether `kernel.hpp` includes all of `field.hpp` only for `Real`, or `Real`
   moves to a smaller header later.
-- Whether the concept's parameter becomes `const T q`. In the draft, `q` is a
-  non-`const` lvalue, so a kernel taking `T&` satisfies `Kernel<K, T>` and
-  could modify the caller's `q`. With `const T q` that kernel is rejected,
-  while kernels taking `T` or `const T&` still pass (checked on Clang 18 and
-  GCC 13).
