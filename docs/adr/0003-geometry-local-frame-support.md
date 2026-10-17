@@ -7,8 +7,11 @@ Everything else in ADR 0001 and [ADR 0002](0002-point-type-restriction.md)
 stands.
 
 Implementation: §1 is already on `main`, in commit e99f6a5. §2 describes the
-current behaviour. §3 to §5 are still to be implemented in Stage 01 (kernels)
-and Stage 02 (neighbour search).
+current behaviour. The kernel contract of §4 is to be implemented in Stage 01
+(kernels), as drafted in the
+[Stage 01 kernel plan](../stages/01-kernels/kernel-plan.md). The rest of §3 to
+§5 belongs to Stage 02 (neighbour search: `ξ`, the candidate test and the
+search contract) and Stage 03 (fitting: transforming derivatives back).
 
 ## Context
 
@@ -123,12 +126,48 @@ rᵢ = g.offset(xᵢ, x₀)    physical displacement, wrapped
 - **Candidate test.** A sample is a candidate exactly when `q² < 1`. The
   comparison is written so that a NaN `q²` fails it.
 - **Kernel input.**
-  - The kernel receives `q` or `q²`, computed from the same `ξ`.
-  - Where it needs `q`, `q = sqrt(q²)` is computed only for candidates.
-  - For `float` and `double`, `q² < 1` holds exactly when `sqrt(q²) < 1`, so
-    the two forms cannot disagree.
-- **Kernel contract (Stage 01).** The kernel's weight is zero for `q ≥ 1`;
-  Stage 01 defines the rest of the kernel contract.
+  - The kernel receives `q = sqrt(q²)`, never `q²`. Wendland kernels contain
+    odd powers of `q`, so they would need the square root anyway.
+  - `q` is computed only for candidates.
+  - `q²` is a sum of squares, so `q ≥ 0`. For `float` and `double`, `q² < 1`
+    holds exactly when `sqrt(q²) < 1`, so the two forms cannot disagree, and
+    the fitter passes the kernel only `q` in `[0, 1)`. A NaN `q²` fails the
+    candidate test and never reaches the kernel.
+- **Kernel contract.** For a scalar type `T`, a kernel is an object `k` whose
+  `const` call `k(q)` is `noexcept` and returns exactly `T`. The `Kernel`
+  concept checks only this. A kernel that models the concept also promises,
+  writing `w(q)` for `k(q)`:
+  1. **Precondition.** `0 ≤ q ≤ 1`, which also excludes NaN. Any other `q`
+     is a caller bug, not a reported error. The kernel may `assert` the
+     precondition, as `Periodic::offset` asserts its own.
+  2. **Boundary.** `w(1) = 0`. The fitter never passes `q = 1`; the closed
+     interval lets tests check the boundary value.
+  3. **Range.** For `q` in `[0, 1]` the result is finite and `≥ 0`. It may
+     round to 0 near `q = 1`, and the sample is then not active.
+  4. **Positive inside.** In exact arithmetic, `w(q) > 0` for `0 ≤ q < 1`, so
+     every candidate carries a weight unless that weight rounds to 0.
+  5. **Scale.** Only relative weights matter. In exact arithmetic, multiplying
+     every weight by the same positive constant changes neither the
+     least-squares solution nor the weighted RMS of ADR 0004. A kernel
+     therefore carries no normalising constant and does not depend on `h` or
+     `D`.
+  6. **Equality-preserving.** The same `q` always gives the same result, and
+     a call does not modify the kernel, so concurrent calls on one kernel are
+     safe.
+
+  The precondition matters because a kernel formula need not vanish, or even
+  stay non-negative, outside `[0, 1]`. Wendland C2, `(1 − q)⁴ (4q + 1)`, gives
+  `w(2) = 9`, nine times its value at the centre, and `w(−0.5) ≈ −5.06`.
+- **Not in the kernel contract.**
+  - The kernel's derivative. The fitter takes derivatives from the polynomial
+    coefficients, never from `w′`.
+  - Its smoothness order. It is a documented property of each kernel,
+    verified on the kernel's formula in Stage 01.
+  - The dimension `D`. Wendland's dimension parameter guarantees positive
+    definiteness, which matters for RBF interpolation matrices.
+    Least-squares weights only need to be non-negative.
+  - `w(0) = 1`. The Stage 01 kernels follow this convention, but it is not
+    required.
 - **Active samples.** A candidate whose weight is not finite and positive is
   not active (ADR 0004). Weight underflow near `q = 1` is one way this can
   happen.
@@ -261,7 +300,10 @@ Done for §1 in commit e99f6a5:
 
 Still to do:
 
-- §3 to §5 in Stages 01 and 02. Their stage files carry the tests.
+- The kernel contract of §4 in Stage 01. Its
+  [plan](../stages/01-kernels/kernel-plan.md) carries the tests.
+- The rest of §3 to §5 in Stages 02 and 03. Their stage files will carry the
+  tests.
 - **On acceptance.** Update ADR 0001's status line, as was done for ADR 0002.
   Mark this ADR accepted in `docs/INDEX.md`, and link it from the Stage 01 and
   Stage 02 rows of `ROADMAP.md`.
@@ -281,6 +323,15 @@ Still to do:
   rejected.
 - **`std::set` for duplicate removal.** It allocates a node per hit and
   yields the same order as sort + unique.
+- **`q²` as the kernel input.** It saves the square root only for kernels
+  that are polynomials in `q²`, such as the biweight `(1 − q²)²`. Wendland
+  kernels would have to take the root themselves.
+- **A tagged kernel argument**, such as `Radius<T>`. It would turn a `q`
+  versus `q²` mix-up into a compile error, but every call would need a
+  wrapper, for a convention this ADR now fixes.
+- **A total kernel** that returns 0 for `q > 1`. It repeats the support test,
+  and a caller passing `q > 1` would go unnoticed instead of failing an
+  assertion.
 
 ## Open points
 
