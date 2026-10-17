@@ -1,7 +1,6 @@
 # tedder: Stage 02 neighbour-search plan
 
-Status: draft. Decisions A1, A2, A3 and A5 are made; A4, spelling and
-names, waits for the author.
+Status: active. Decisions A1 to A5 are made; S1 can start.
 
 This plan implements the parts of
 [ADR 0003](../../adr/0003-geometry-local-frame-support.md) that turn a query
@@ -43,7 +42,7 @@ Out of scope:
 | A1 | Brute force: return every index, or prefilter with the canonical `q² < 1` test? This was ADR 0003's open point. | Every index. In the author's words, brute force is only for regular grids and maybe a fallback. It is complete without any argument, it does not depend on the frame, and candidate selection stays the one place that decides. |
 | A2 | Search output: a caller-owned buffer, or a returned vector? | A caller-owned `std::vector<std::size_t>&`, reused across queries, whose contents the backend replaces. After the first query, no allocation. |
 | A3 | Public surface in Stage 02. | None: everything in `namespace detail`. The fit in Stage 03 is the first public entry point, and the search concept comes with Stage 05. |
-| A4 | Spelling and names. | Open. Recommended: American spelling in code (identifiers, header and file names), as in the C++ standard library (`initializer_list`), Eigen (`normalize`) and nanoflann (`findNeighbors`); British prose stays as it is, and `docs/INDEX.md` lists both spellings as search terms. The proposed names (`IsotropicFrame`, `BruteForceSearch`, `detail/frame.hpp`, `detail/search.hpp`, `tests/test_search.cpp`) avoid the word either way. |
+| A4 | Spelling and names. | American spelling in code: identifiers, header and file names, as in the C++ standard library (`initializer_list`), Eigen (`normalize`) and nanoflann (`findNeighbors`). British prose stays as it is, and `docs/INDEX.md` lists both spellings as search terms. The proposed names (`IsotropicFrame`, `BruteForceSearch`, `detail/frame.hpp`, `detail/search.hpp`, `tests/test_search.cpp`) avoid the word either way. |
 | A5 | Non-finite sample coordinates. | A precondition, as in ADR 0001, with a debug-only assertion in candidate selection. Whether it becomes a reported failure is decided in Stage 03, where errors are reported. |
 
 ## Order of work
@@ -147,7 +146,7 @@ converts nanoflann's index type.
 
 ## Tests
 
-`tests/test_search.cpp` (or the name chosen in A4). Every test runs for
+`tests/test_search.cpp`. Every test runs for
 `float` and `double`. No expected value is computed with the formula under
 test: expectations are hand-built, or come from integer arithmetic.
 
@@ -232,7 +231,7 @@ compares against exact arithmetic there.
 
 ## Acceptance
 
-- A4 is decided and recorded here before S1; A1 to A3 and A5 already are.
+- The decisions A1 to A5 are recorded here (done before S1).
 - T1 to T6 pass with `tools/build-test.sh` (presets `dev-clang`, `dev-gcc`
   and `asan-ubsan`) and in CI.
 - No public API is added.
