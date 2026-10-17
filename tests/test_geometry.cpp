@@ -19,133 +19,138 @@ using namespace tedder;
 
 namespace
 {
-template <Domain G> void check_generic_domain_laws(const G &g)
-{
-  using T = typename G::scalar_type;
-  using P = typename G::point_type;
-  constexpr std::size_t D = G::dimension;
+  template <Domain G>
+  void check_generic_domain_laws(const G &g)
+  {
+    using T = typename G::scalar_type;
+    using P = typename G::point_type;
+    constexpr std::size_t D = G::dimension;
 
-  const T mb = g.max_bandwidth();
-  const T scale = std::isfinite(mb) ? mb / T{4} : T{10};
-  const T eps = std::numeric_limits<T>::epsilon();
-  const T tol = T{8} * eps * (scale > T{1} ? scale : T{1});
+    const T mb = g.max_bandwidth();
+    const T scale = std::isfinite(mb) ? mb / T{4} : T{10};
+    const T eps = std::numeric_limits<T>::epsilon();
+    const T tol = T{8} * eps * (scale > T{1} ? scale : T{1});
 
-  P p{}, q{};
-  for (std::size_t d = 0; d < D; ++d)
+    P p{}, q{};
+    for (std::size_t d = 0; d < D; ++d)
     {
       p[d] = static_cast<T>(d) * scale * T{0.25};
       q[d] = p[d] + (d % 2 == 0 ? scale * T{0.5} : -scale * T{0.5});
     }
 
-  // offset(p,p) is zero in every component; distance_squared(p,p) is zero.
-  const auto zero = g.offset(p, p);
-  for (std::size_t d = 0; d < D; ++d)
-    CHECK(zero[d] == T{0});
-  CHECK(tedder::distance_squared(g, p, p) == T{0});
+    // offset(p,p) is zero in every component; distance_squared(p,p) is zero.
+    const auto zero = g.offset(p, p);
+    for (std::size_t d = 0; d < D; ++d)
+      CHECK(zero[d] == T{0});
+    CHECK(tedder::distance_squared(g, p, p) == T{0});
 
-  // distance_squared is never negative and is symmetric in its arguments.
-  const T d2pq = tedder::distance_squared(g, p, q);
-  const T d2qp = tedder::distance_squared(g, q, p);
-  CHECK(d2pq >= T{0});
-  CHECK(d2pq == d2qp);
+    // distance_squared is never negative and is symmetric in its arguments.
+    const T d2pq = tedder::distance_squared(g, p, q);
+    const T d2qp = tedder::distance_squared(g, q, p);
+    CHECK(d2pq >= T{0});
+    CHECK(d2pq == d2qp);
 
-  // offset(q,p) is the negation of offset(p,q); p,q sit far from any tie.
-  const auto opq = g.offset(p, q);
-  const auto oqp = g.offset(q, p);
-  for (std::size_t d = 0; d < D; ++d)
-    CHECK(oqp[d] == -opq[d]);
+    // offset(q,p) is the negation of offset(p,q); p,q sit far from any tie.
+    const auto opq = g.offset(p, q);
+    const auto oqp = g.offset(q, p);
+    for (std::size_t d = 0; d < D; ++d)
+      CHECK(oqp[d] == -opq[d]);
 
-  // distance_squared matches an independently summed squared norm of offset.
-  T norm2{};
-  for (std::size_t d = 0; d < D; ++d)
-    norm2 += opq[d] * opq[d];
-  CHECK(d2pq == norm2);
+    // distance_squared matches an independently summed squared norm of offset.
+    T norm2{};
+    for (std::size_t d = 0; d < D; ++d)
+      norm2 += opq[d] * opq[d];
+    CHECK(d2pq == norm2);
 
-  // Translation invariance for a translation well inside the safe scale,
-  // with positive, negative and mixed-sign components.
-  P t{};
-  for (std::size_t d = 0; d < D; ++d)
-    t[d] = (d % 2 == 0 ? T{1} : T{-1}) * scale * T{0.125} * static_cast<T>(d + 1);
+    // Translation invariance for a translation well inside the safe scale,
+    // with positive, negative and mixed-sign components.
+    P t{};
+    for (std::size_t d = 0; d < D; ++d)
+      t[d] = (d % 2 == 0 ? T{1} : T{-1}) * scale * T{0.125} * static_cast<T>(d + 1);
 
-  P pt{}, qt{};
-  for (std::size_t d = 0; d < D; ++d)
+    P pt{}, qt{};
+    for (std::size_t d = 0; d < D; ++d)
     {
       pt[d] = p[d] + t[d];
       qt[d] = q[d] + t[d];
     }
 
-  const auto shifted = g.offset(pt, qt);
-  for (std::size_t d = 0; d < D; ++d)
-    CHECK(std::abs(shifted[d] - opq[d]) <= tol);
-}
+    const auto shifted = g.offset(pt, qt);
+    for (std::size_t d = 0; d < D; ++d)
+      CHECK(std::abs(shifted[d] - opq[d]) <= tol);
+  }
 
-// A known non-zero distance, computed by hand, independent of the domain's
-// own reduction. For Periodic domains the caller must pick a period large
-// enough that this pair never wraps.
-template <Domain G>
-void check_known_distance(const G &g, const typename G::point_type &p, const typename G::point_type &q,
-                          typename G::scalar_type expected_distance)
-{
-  using T = typename G::scalar_type;
-  const T expected_sq = expected_distance * expected_distance;
-  CHECK(tedder::distance_squared(g, p, q) == expected_sq);
-  CHECK(distance(g, p, q) == expected_distance);
-}
+  // A known non-zero distance, computed by hand, independent of the domain's
+  // own reduction. For Periodic domains the caller must pick a period large
+  // enough that this pair never wraps.
+  template <Domain G>
+  void check_known_distance(const G &g, const typename G::point_type &p, const typename G::point_type &q,
+                            typename G::scalar_type expected_distance)
+  {
+    using T = typename G::scalar_type;
+    const T expected_sq = expected_distance * expected_distance;
+    CHECK(tedder::distance_squared(g, p, q) == expected_sq);
+    CHECK(distance(g, p, q) == expected_distance);
+  }
 
-template <class T, std::size_t D> struct KnownPair
-{
+  template <class T, std::size_t D>
+  struct KnownPair
+  {
     Point<T, D> p{};
     Point<T, D> q{};
     T distance{};
-};
+  };
 
-// 1D: 0 to 5. 2D: the 3-4-5 triangle. 3D: 2-3-6-7, another integer
-// Pythagorean quadruple. All coordinates and the result are small exact
-// integers, representable identically in float and double.
-template <Real T, std::size_t D> KnownPair<T, D> make_known_pair()
-{
-  KnownPair<T, D> kp;
-  if constexpr (D == 1)
+  // 1D: 0 to 5. 2D: the 3-4-5 triangle. 3D: 2-3-6-7, another integer
+  // Pythagorean quadruple. All coordinates and the result are small exact
+  // integers, representable identically in float and double.
+  template <Real T, std::size_t D>
+  KnownPair<T, D> make_known_pair()
+  {
+    KnownPair<T, D> kp;
+    if constexpr (D == 1)
     {
       kp.p = Point<T, 1>{T{0}};
       kp.q = Point<T, 1>{T{5}};
       kp.distance = T{5};
     }
-  else if constexpr (D == 2)
+    else if constexpr (D == 2)
     {
       kp.p = Point<T, 2>{T{0}, T{0}};
       kp.q = Point<T, 2>{T{3}, T{4}};
       kp.distance = T{5};
     }
-  else
+    else
     {
       static_assert(D == 3);
       kp.p = Point<T, 3>{T{0}, T{0}, T{0}};
       kp.q = Point<T, 3>{T{2}, T{3}, T{6}};
       kp.distance = T{7};
     }
-  return kp;
-}
+    return kp;
+  }
 
-template <Real T, std::size_t D> void run_euclidean_checks()
-{
-  Euclidean<T, D> g;
-  check_generic_domain_laws(g);
-  const auto kp = make_known_pair<T, D>();
-  check_known_distance(g, kp.p, kp.q, kp.distance);
-}
+  template <Real T, std::size_t D>
+  void run_euclidean_checks()
+  {
+    Euclidean<T, D> g;
+    check_generic_domain_laws(g);
+    const auto kp = make_known_pair<T, D>();
+    check_known_distance(g, kp.p, kp.q, kp.distance);
+  }
 
-template <Real T, std::size_t D> void run_periodic_checks_no_wrap()
-{
-  Periodic<T, D> g;
-  for (std::size_t d = 0; d < D; ++d)
-    g.length[d] = T{100} + static_cast<T>(d); // generous: nothing here wraps
-  REQUIRE(g.is_valid());
+  template <Real T, std::size_t D>
+  void run_periodic_checks_no_wrap()
+  {
+    Periodic<T, D> g;
+    for (std::size_t d = 0; d < D; ++d)
+      g.length[d] = T{100} + static_cast<T>(d); // generous: nothing here wraps
+    REQUIRE(g.is_valid());
 
-  check_generic_domain_laws(g);
-  const auto kp = make_known_pair<T, D>();
-  check_known_distance(g, kp.p, kp.q, kp.distance);
-}
+    check_generic_domain_laws(g);
+    const auto kp = make_known_pair<T, D>();
+    check_known_distance(g, kp.p, kp.q, kp.distance);
+  }
 } // namespace
 
 TEST_CASE("Domain: generic laws hold for Euclidean<double, D>", "[geometry][euclidean]")
@@ -180,89 +185,93 @@ TEST_CASE("Domain: generic laws hold for Periodic<float, D> away from any wrap",
 
 namespace
 {
-// Shifting a point by a whole number of periods on every axis must leave
-// both the offset and the distance unchanged, away from half-period ties.
-template <Real T, std::size_t D> void check_periodic_period_shift_invariance()
-{
-  Periodic<T, D> g;
-  Point<T, D> p{}, q{};
-  for (std::size_t d = 0; d < D; ++d)
+  // Shifting a point by a whole number of periods on every axis must leave
+  // both the offset and the distance unchanged, away from half-period ties.
+  template <Real T, std::size_t D>
+  void check_periodic_period_shift_invariance()
+  {
+    Periodic<T, D> g;
+    Point<T, D> p{}, q{};
+    for (std::size_t d = 0; d < D; ++d)
     {
       g.length[d] = T{6} + static_cast<T>(d);
       p[d] = T{1} + static_cast<T>(d) * T{0.5}; // comfortably below half a period
       q[d] = T{0};
     }
-  REQUIRE(g.is_valid());
+    REQUIRE(g.is_valid());
 
-  const auto o0 = g.offset(p, q);
-  const T d20 = tedder::distance_squared(g, p, q);
+    const auto o0 = g.offset(p, q);
+    const T d20 = tedder::distance_squared(g, p, q);
 
-  Point<T, D> p_shifted{};
-  for (std::size_t d = 0; d < D; ++d)
-    p_shifted[d] = p[d] + static_cast<T>(d + 1) * g.length[d]; // shift by (d+1) whole periods
+    Point<T, D> p_shifted{};
+    for (std::size_t d = 0; d < D; ++d)
+      p_shifted[d] = p[d] + static_cast<T>(d + 1) * g.length[d]; // shift by (d+1) whole periods
 
-  const auto o1 = g.offset(p_shifted, q);
-  const T d21 = tedder::distance_squared(g, p_shifted, q);
+    const auto o1 = g.offset(p_shifted, q);
+    const T d21 = tedder::distance_squared(g, p_shifted, q);
 
-  const T eps = std::numeric_limits<T>::epsilon();
-  for (std::size_t d = 0; d < D; ++d)
-    CHECK(std::abs(o1[d] - o0[d]) <= T{8} * eps * g.length[d]);
-  CHECK(std::abs(d21 - d20) <= T{8} * eps * std::max(d20, T{1}));
-}
+    const T eps = std::numeric_limits<T>::epsilon();
+    for (std::size_t d = 0; d < D; ++d)
+      CHECK(std::abs(o1[d] - o0[d]) <= T{8} * eps * g.length[d]);
+    CHECK(std::abs(d21 - d20) <= T{8} * eps * std::max(d20, T{1}));
+  }
 
-// An open axis (length[d] <= 0) is exact, unwrapped subtraction, no matter
-// how far apart the coordinates are. With D > 1 this also exercises a mixed
-// box: axis 0 stays open while the remaining axes wrap.
-template <Real T, std::size_t D> void check_periodic_open_axis_does_not_wrap()
-{
-  Periodic<T, D> g;
-  for (std::size_t d = 0; d < D; ++d)
-    g.length[d] = (d == 0) ? T{-1} : T{4};
-  REQUIRE(g.is_valid());
+  // An open axis (length[d] <= 0) is exact, unwrapped subtraction, no matter
+  // how far apart the coordinates are. With D > 1 this also exercises a mixed
+  // box: axis 0 stays open while the remaining axes wrap.
+  template <Real T, std::size_t D>
+  void check_periodic_open_axis_does_not_wrap()
+  {
+    Periodic<T, D> g;
+    for (std::size_t d = 0; d < D; ++d)
+      g.length[d] = (d == 0) ? T{-1} : T{4};
+    REQUIRE(g.is_valid());
 
-  Point<T, D> p{}, q{};
-  p[0] = T{123.5};
+    Point<T, D> p{}, q{};
+    p[0] = T{123.5};
 
-  const auto r = g.offset(p, q);
-  CHECK(r[0] == p[0] - q[0]);
-}
+    const auto r = g.offset(p, q);
+    CHECK(r[0] == p[0] - q[0]);
+  }
 
-template <Real T> void check_periodic_wrapped_bound_1d()
-{
-  Periodic<T, 1> g;
-  g.length[0] = T{5};
-  REQUIRE(g.is_valid());
+  template <Real T>
+  void check_periodic_wrapped_bound_1d()
+  {
+    Periodic<T, 1> g;
+    g.length[0] = T{5};
+    REQUIRE(g.is_valid());
 
-  const T eps = std::numeric_limits<T>::epsilon();
-  const T half = g.length[0] / T{2};
-  const T tol = T{8} * eps * g.length[0];
+    const T eps = std::numeric_limits<T>::epsilon();
+    const T half = g.length[0] / T{2};
+    const T tol = T{8} * eps * g.length[0];
 
-  const T multipliers[] = {T{-3.25}, T{-1.0}, T{-0.5}, T{0.0}, T{0.5}, T{0.9375}, T{1.0}, T{2.75}};
-  for (T m : multipliers)
+    const T multipliers[] = {T{-3.25}, T{-1.0}, T{-0.5}, T{0.0}, T{0.5}, T{0.9375}, T{1.0}, T{2.75}};
+    for (T m : multipliers)
     {
       const Point<T, 1> p{m * g.length[0]};
       const Point<T, 1> q{};
       const auto r = g.offset(p, q);
       CHECK(std::abs(r[0]) <= half + tol);
     }
-}
+  }
 
-// Faces and corners of a mixed 2D box: axis 0 wraps, axis 1 is open.
-template <Real T> void check_periodic_wrapped_bound_2d()
-{
-  Periodic<T, 2> g;
-  g.length = {T{4}, T{-1}};
-  REQUIRE(g.is_valid());
+  // Faces and corners of a mixed 2D box: axis 0 wraps, axis 1 is open.
+  template <Real T>
+  void check_periodic_wrapped_bound_2d()
+  {
+    Periodic<T, 2> g;
+    g.length = {T{4}, T{-1}};
+    REQUIRE(g.is_valid());
 
-  const T eps = std::numeric_limits<T>::epsilon();
-  const T half0 = g.length[0] / T{2};
-  const T tol0 = T{8} * eps * g.length[0];
+    const T eps = std::numeric_limits<T>::epsilon();
+    const T half0 = g.length[0] / T{2};
+    const T tol0 = T{8} * eps * g.length[0];
 
-  const T multipliers[] = {T{-2.75}, T{-1.0}, T{-0.5}, T{0.0}, T{0.5}, T{0.9375}, T{1.0}, T{3.25}};
-  const T open_axis_values[] = {T{0}, T{57.25}};
+    const T multipliers[] = {T{-2.75}, T{-1.0}, T{-0.5}, T{0.0}, T{0.5}, T{0.9375}, T{1.0}, T{3.25}};
+    const T open_axis_values[] = {T{0}, T{57.25}};
 
-  for (T m : multipliers)
-    for (T open_val : open_axis_values)
+    for (T m : multipliers)
+      for (T open_val : open_axis_values)
       {
         const Point<T, 2> p{m * g.length[0], open_val};
         const Point<T, 2> q{};
@@ -271,27 +280,28 @@ template <Real T> void check_periodic_wrapped_bound_2d()
         CHECK(std::abs(r[0]) <= half0 + tol0); // wrapping axis: minimum image
         CHECK(r[1] == p[1] - q[1]);            // open axis: exact, unwrapped
       }
-}
+  }
 
-// Faces and corners of a mixed 3D box: axes 0,1 wrap, axis 2 is open.
-template <Real T> void check_periodic_wrapped_bound_3d()
-{
-  Periodic<T, 3> g;
-  g.length = {T{4}, T{6}, T{-1}};
-  REQUIRE(g.is_valid());
+  // Faces and corners of a mixed 3D box: axes 0,1 wrap, axis 2 is open.
+  template <Real T>
+  void check_periodic_wrapped_bound_3d()
+  {
+    Periodic<T, 3> g;
+    g.length = {T{4}, T{6}, T{-1}};
+    REQUIRE(g.is_valid());
 
-  const T eps = std::numeric_limits<T>::epsilon();
-  const T half0 = g.length[0] / T{2};
-  const T half1 = g.length[1] / T{2};
-  const T tol0 = T{8} * eps * g.length[0];
-  const T tol1 = T{8} * eps * g.length[1];
+    const T eps = std::numeric_limits<T>::epsilon();
+    const T half0 = g.length[0] / T{2};
+    const T half1 = g.length[1] / T{2};
+    const T tol0 = T{8} * eps * g.length[0];
+    const T tol1 = T{8} * eps * g.length[1];
 
-  const T multipliers[] = {T{-2.75}, T{-0.5}, T{0.0}, T{0.5}, T{3.25}};
-  const T open_axis_values[] = {T{0}, T{-41.5}};
+    const T multipliers[] = {T{-2.75}, T{-0.5}, T{0.0}, T{0.5}, T{3.25}};
+    const T open_axis_values[] = {T{0}, T{-41.5}};
 
-  for (T m0 : multipliers)
-    for (T m1 : multipliers)
-      for (T open_val : open_axis_values)
+    for (T m0 : multipliers)
+      for (T m1 : multipliers)
+        for (T open_val : open_axis_values)
         {
           const Point<T, 3> p{m0 * g.length[0], m1 * g.length[1], open_val};
           const Point<T, 3> q{};
@@ -301,31 +311,32 @@ template <Real T> void check_periodic_wrapped_bound_3d()
           CHECK(std::abs(r[1]) <= half1 + tol1);
           CHECK(r[2] == p[2] - q[2]);
         }
-}
+  }
 
-// admits_bandwidth is strict at max_bandwidth(), for a domain where that
-// limit is a normal, finite, representable value.
-template <Real T, std::size_t D> void check_admits_bandwidth_boundary()
-{
-  Periodic<T, D> g;
-  for (std::size_t d = 0; d < D; ++d)
-    g.length[d] = T{2} + static_cast<T>(d); // axis 0 is always the smallest: limit == 1
-  REQUIRE(g.is_valid());
+  // admits_bandwidth is strict at max_bandwidth(), for a domain where that
+  // limit is a normal, finite, representable value.
+  template <Real T, std::size_t D>
+  void check_admits_bandwidth_boundary()
+  {
+    Periodic<T, D> g;
+    for (std::size_t d = 0; d < D; ++d)
+      g.length[d] = T{2} + static_cast<T>(d); // axis 0 is always the smallest: limit == 1
+    REQUIRE(g.is_valid());
 
-  const T limit = g.max_bandwidth();
-  REQUIRE(std::isfinite(limit));
-  REQUIRE(limit > T{0});
+    const T limit = g.max_bandwidth();
+    REQUIRE(std::isfinite(limit));
+    REQUIRE(limit > T{0});
 
-  CHECK(admits_bandwidth(g, std::nextafter(limit, T{0})));
-  CHECK_FALSE(admits_bandwidth(g, limit));
-  CHECK_FALSE(admits_bandwidth(g, std::nextafter(limit, std::numeric_limits<T>::infinity())));
+    CHECK(admits_bandwidth(g, std::nextafter(limit, T{0})));
+    CHECK_FALSE(admits_bandwidth(g, limit));
+    CHECK_FALSE(admits_bandwidth(g, std::nextafter(limit, std::numeric_limits<T>::infinity())));
 
-  CHECK_FALSE(admits_bandwidth(g, T{0}));
-  CHECK_FALSE(admits_bandwidth(g, T{-1}));
-  CHECK_FALSE(admits_bandwidth(g, std::numeric_limits<T>::quiet_NaN()));
-  CHECK_FALSE(admits_bandwidth(g, std::numeric_limits<T>::infinity()));
-  CHECK_FALSE(admits_bandwidth(g, -std::numeric_limits<T>::infinity()));
-}
+    CHECK_FALSE(admits_bandwidth(g, T{0}));
+    CHECK_FALSE(admits_bandwidth(g, T{-1}));
+    CHECK_FALSE(admits_bandwidth(g, std::numeric_limits<T>::quiet_NaN()));
+    CHECK_FALSE(admits_bandwidth(g, std::numeric_limits<T>::infinity()));
+    CHECK_FALSE(admits_bandwidth(g, -std::numeric_limits<T>::infinity()));
+  }
 } // namespace
 
 TEST_CASE("Periodic: shifting by whole periods leaves distance and offset unchanged", "[geometry][periodic]")
@@ -376,68 +387,71 @@ TEST_CASE("Periodic: admits_bandwidth is strict at the boundary", "[geometry][pe
 // with an open axis ahead of it.
 namespace
 {
-template <Real T> void check_max_bandwidth_smallest_period_2d()
-{
+  template <Real T>
+  void check_max_bandwidth_smallest_period_2d()
   {
-    Periodic<T, 2> g;
-    g.length = {T{2}, T{6}};
-    REQUIRE(g.is_valid());
-    CHECK(g.max_bandwidth() == T{1});
+    {
+      Periodic<T, 2> g;
+      g.length = {T{2}, T{6}};
+      REQUIRE(g.is_valid());
+      CHECK(g.max_bandwidth() == T{1});
+    }
+    {
+      Periodic<T, 2> g;
+      g.length = {T{6}, T{2}};
+      REQUIRE(g.is_valid());
+      CHECK(g.max_bandwidth() == T{1});
+    }
+    {
+      // Open axis precedes the shortest period: distinguishes "first positive"
+      // from "first axis" as well.
+      Periodic<T, 2> g;
+      g.length = {T{-1}, T{2}};
+      REQUIRE(g.is_valid());
+      CHECK(g.max_bandwidth() == T{1});
+    }
   }
-  {
-    Periodic<T, 2> g;
-    g.length = {T{6}, T{2}};
-    REQUIRE(g.is_valid());
-    CHECK(g.max_bandwidth() == T{1});
-  }
-  {
-    // Open axis precedes the shortest period: distinguishes "first positive"
-    // from "first axis" as well.
-    Periodic<T, 2> g;
-    g.length = {T{-1}, T{2}};
-    REQUIRE(g.is_valid());
-    CHECK(g.max_bandwidth() == T{1});
-  }
-}
 
-template <Real T> void check_max_bandwidth_smallest_period_3d()
-{
+  template <Real T>
+  void check_max_bandwidth_smallest_period_3d()
   {
-    Periodic<T, 3> g;
-    g.length = {T{2}, T{6}, T{4}};
-    REQUIRE(g.is_valid());
-    CHECK(g.max_bandwidth() == T{1});
+    {
+      Periodic<T, 3> g;
+      g.length = {T{2}, T{6}, T{4}};
+      REQUIRE(g.is_valid());
+      CHECK(g.max_bandwidth() == T{1});
+    }
+    {
+      Periodic<T, 3> g;
+      g.length = {T{6}, T{2}, T{4}};
+      REQUIRE(g.is_valid());
+      CHECK(g.max_bandwidth() == T{1});
+    }
+    {
+      Periodic<T, 3> g;
+      g.length = {T{6}, T{4}, T{2}};
+      REQUIRE(g.is_valid());
+      CHECK(g.max_bandwidth() == T{1});
+    }
+    {
+      // Open axis precedes the shortest period.
+      Periodic<T, 3> g;
+      g.length = {T{0}, T{6}, T{2}};
+      REQUIRE(g.is_valid());
+      CHECK(g.max_bandwidth() == T{1});
+    }
   }
+
+  // The consequence, not only the value: a bandwidth admissible under a
+  // "first positive period" mutation must actually be rejected.
+  template <Real T>
+  void check_admits_bandwidth_follows_smallest_period()
   {
     Periodic<T, 3> g;
     g.length = {T{6}, T{2}, T{4}};
     REQUIRE(g.is_valid());
-    CHECK(g.max_bandwidth() == T{1});
+    CHECK_FALSE(admits_bandwidth(g, T{2}));
   }
-  {
-    Periodic<T, 3> g;
-    g.length = {T{6}, T{4}, T{2}};
-    REQUIRE(g.is_valid());
-    CHECK(g.max_bandwidth() == T{1});
-  }
-  {
-    // Open axis precedes the shortest period.
-    Periodic<T, 3> g;
-    g.length = {T{0}, T{6}, T{2}};
-    REQUIRE(g.is_valid());
-    CHECK(g.max_bandwidth() == T{1});
-  }
-}
-
-// The consequence, not only the value: a bandwidth admissible under a
-// "first positive period" mutation must actually be rejected.
-template <Real T> void check_admits_bandwidth_follows_smallest_period()
-{
-  Periodic<T, 3> g;
-  g.length = {T{6}, T{2}, T{4}};
-  REQUIRE(g.is_valid());
-  CHECK_FALSE(admits_bandwidth(g, T{2}));
-}
 } // namespace
 
 TEST_CASE("Periodic: max_bandwidth is governed by the smallest positive period, not the first", "[geometry][periodic][bandwidth]")
@@ -470,80 +484,84 @@ TEST_CASE("Periodic: max_bandwidth follows a changed period, not a cached value"
 
 namespace
 {
-template <Real T, std::size_t D> void check_is_valid_positive_cases()
-{
-  const Periodic<T, D> default_g;
-  CHECK(default_g.is_valid());
+  template <Real T, std::size_t D>
+  void check_is_valid_positive_cases()
+  {
+    const Periodic<T, D> default_g;
+    CHECK(default_g.is_valid());
 
-  Periodic<T, D> all_open;
-  for (std::size_t d = 0; d < D; ++d)
-    all_open.length[d] = T{-1}; // finite negative: still open, still valid
-  CHECK(all_open.is_valid());
+    Periodic<T, D> all_open;
+    for (std::size_t d = 0; d < D; ++d)
+      all_open.length[d] = T{-1}; // finite negative: still open, still valid
+    CHECK(all_open.is_valid());
 
-  Periodic<T, D> all_wrap;
-  for (std::size_t d = 0; d < D; ++d)
-    all_wrap.length[d] = T{2} + static_cast<T>(d);
-  CHECK(all_wrap.is_valid());
+    Periodic<T, D> all_wrap;
+    for (std::size_t d = 0; d < D; ++d)
+      all_wrap.length[d] = T{2} + static_cast<T>(d);
+    CHECK(all_wrap.is_valid());
 
-  Periodic<T, D> mixed;
-  for (std::size_t d = 0; d < D; ++d)
-    mixed.length[d] = (d % 2 == 0) ? T{3} + static_cast<T>(d) : T{0};
-  CHECK(mixed.is_valid());
-}
+    Periodic<T, D> mixed;
+    for (std::size_t d = 0; d < D; ++d)
+      mixed.length[d] = (d % 2 == 0) ? T{3} + static_cast<T>(d) : T{0};
+    CHECK(mixed.is_valid());
+  }
 
-// One axis gets a non-finite value; every other axis keeps a valid, finite,
-// wrapping length, so a single bad position invalidates the whole domain.
-template <Real T, std::size_t D> void check_invalid_axis_position(std::size_t bad_axis, T bad_value)
-{
-  Periodic<T, D> g;
-  for (std::size_t d = 0; d < D; ++d)
-    g.length[d] = T{2} + static_cast<T>(d);
-  g.length[bad_axis] = bad_value;
+  // One axis gets a non-finite value; every other axis keeps a valid, finite,
+  // wrapping length, so a single bad position invalidates the whole domain.
+  template <Real T, std::size_t D>
+  void check_invalid_axis_position(std::size_t bad_axis, T bad_value)
+  {
+    Periodic<T, D> g;
+    for (std::size_t d = 0; d < D; ++d)
+      g.length[d] = T{2} + static_cast<T>(d);
+    g.length[bad_axis] = bad_value;
 
-  CHECK_FALSE(g.is_valid());
-  CHECK(g.max_bandwidth() == T{0});
+    CHECK_FALSE(g.is_valid());
+    CHECK(g.max_bandwidth() == T{0});
 
-  // Every tested bandwidth is rejected, including a small positive value
-  // that would be admissible if this domain were valid.
-  CHECK_FALSE(admits_bandwidth(g, T{0.5}));
-  CHECK_FALSE(admits_bandwidth(g, T{1}));
-  CHECK_FALSE(admits_bandwidth(g, T{0}));
-  CHECK_FALSE(admits_bandwidth(g, T{-1}));
-  CHECK_FALSE(admits_bandwidth(g, std::numeric_limits<T>::quiet_NaN()));
-  CHECK_FALSE(admits_bandwidth(g, std::numeric_limits<T>::infinity()));
-}
+    // Every tested bandwidth is rejected, including a small positive value
+    // that would be admissible if this domain were valid.
+    CHECK_FALSE(admits_bandwidth(g, T{0.5}));
+    CHECK_FALSE(admits_bandwidth(g, T{1}));
+    CHECK_FALSE(admits_bandwidth(g, T{0}));
+    CHECK_FALSE(admits_bandwidth(g, T{-1}));
+    CHECK_FALSE(admits_bandwidth(g, std::numeric_limits<T>::quiet_NaN()));
+    CHECK_FALSE(admits_bandwidth(g, std::numeric_limits<T>::infinity()));
+  }
 
-template <Real T, std::size_t D> void check_invalid_axis_all_positions()
-{
-  for (std::size_t d = 0; d < D; ++d)
+  template <Real T, std::size_t D>
+  void check_invalid_axis_all_positions()
+  {
+    for (std::size_t d = 0; d < D; ++d)
     {
       check_invalid_axis_position<T, D>(d, std::numeric_limits<T>::quiet_NaN());
       check_invalid_axis_position<T, D>(d, std::numeric_limits<T>::infinity());
       check_invalid_axis_position<T, D>(d, -std::numeric_limits<T>::infinity());
     }
-}
+  }
 
-// Validity must be recomputed from current `length`, never cached.
-template <Real T> void check_validity_mutation_not_cached()
-{
-  Periodic<T, 2> g;
-  CHECK(g.is_valid()); // default: valid
+  // Validity must be recomputed from current `length`, never cached.
+  template <Real T>
+  void check_validity_mutation_not_cached()
+  {
+    Periodic<T, 2> g;
+    CHECK(g.is_valid()); // default: valid
 
-  g.length[0] = T{4};
-  CHECK(g.is_valid()); // still valid: finite positive
+    g.length[0] = T{4};
+    CHECK(g.is_valid()); // still valid: finite positive
 
-  g.length[1] = std::numeric_limits<T>::infinity();
-  CHECK_FALSE(g.is_valid()); // now invalid
+    g.length[1] = std::numeric_limits<T>::infinity();
+    CHECK_FALSE(g.is_valid()); // now invalid
 
-  g.length[1] = T{-2}; // finite negative: open, valid again
-  CHECK(g.is_valid());
+    g.length[1] = T{-2}; // finite negative: open, valid again
+    CHECK(g.is_valid());
 
-  g.length[0] = std::numeric_limits<T>::quiet_NaN();
-  CHECK_FALSE(g.is_valid()); // invalid again
+    g.length[0] = std::numeric_limits<T>::quiet_NaN();
+    CHECK_FALSE(g.is_valid()); // invalid again
 
-  g.length[0] = T{0};
-  CHECK(g.is_valid()); // back to valid
-}
+    g.length[0] = T{0};
+    CHECK(g.is_valid()); // back to valid
+  }
 } // namespace
 
 TEST_CASE("Periodic: is_valid is true for default, open, wrapping and mixed configurations", "[geometry][periodic][validity]")
@@ -576,20 +594,21 @@ TEST_CASE("Periodic: validity follows current length, not a cached value", "[geo
 
 namespace
 {
-// offset(p,q) on a single axis, checked against an independently derived
-// expected value, plus its exact reversal (antisymmetry holds bit-exactly
-// here: round() is odd and a-b/b-a negate exactly, so the same branch is
-// always taken for both argument orders).
-template <Real T> void check_offset(T L, T p, T q, T expected)
-{
-  Periodic<T, 1> g;
-  g.length[0] = L;
-  REQUIRE(g.is_valid());
+  // offset(p,q) on a single axis, checked against an independently derived
+  // expected value, plus its exact reversal (antisymmetry holds bit-exactly
+  // here: round() is odd and a-b/b-a negate exactly, so the same branch is
+  // always taken for both argument orders).
+  template <Real T>
+  void check_offset(T L, T p, T q, T expected)
+  {
+    Periodic<T, 1> g;
+    g.length[0] = L;
+    REQUIRE(g.is_valid());
 
-  const Point<T, 1> pp{p}, qq{q};
-  CHECK(g.offset(pp, qq)[0] == expected);
-  CHECK(g.offset(qq, pp)[0] == -expected);
-}
+    const Point<T, 1> pp{p}, qq{q};
+    CHECK(g.offset(pp, qq)[0] == expected);
+    CHECK(g.offset(qq, pp)[0] == -expected);
+  }
 } // namespace
 
 TEST_CASE("Periodic: F3 regressions from field-plan.md", "[geometry][periodic][reduction]")
@@ -654,46 +673,47 @@ TEST_CASE("Periodic: representation ties follow the documented convention, not a
 // neighbouring representable values straddle each boundary exactly.
 namespace
 {
-template <Real T> void check_reduction_boundary_neighbours()
-{
-  const T L = T{4};
-  const T below = L - std::nextafter(L, T{0});                               // ulp just below L
-  const T above = std::nextafter(L, std::numeric_limits<T>::infinity()) - L; // ulp just above L
+  template <Real T>
+  void check_reduction_boundary_neighbours()
+  {
+    const T L = T{4};
+    const T below = L - std::nextafter(L, T{0});                               // ulp just below L
+    const T above = std::nextafter(L, std::numeric_limits<T>::infinity()) - L; // ulp just above L
 
-  Periodic<T, 2> g;
-  g.length = {L, T{-1}};
-  REQUIRE(g.is_valid());
+    Periodic<T, 2> g;
+    g.length = {L, T{-1}};
+    REQUIRE(g.is_valid());
 
-  const Point<T, 2> q{T{0}, T{0}};
+    const Point<T, 2> q{T{0}, T{0}};
 
-  // Just below L: fast path, offset is -below.
-  {
-    const Point<T, 2> p{std::nextafter(L, T{0}), T{0}};
-    CHECK(g.offset(p, q)[0] == -below);
+    // Just below L: fast path, offset is -below.
+    {
+      const Point<T, 2> p{std::nextafter(L, T{0}), T{0}};
+      CHECK(g.offset(p, q)[0] == -below);
+    }
+    // Exactly L: fast path, offset is 0.
+    {
+      const Point<T, 2> p{L, T{0}};
+      CHECK(g.offset(p, q)[0] == T{0});
+    }
+    // Just above L: first value to take the slow (std::remainder) path.
+    {
+      const Point<T, 2> p{std::nextafter(L, std::numeric_limits<T>::infinity()), T{0}};
+      CHECK(g.offset(p, q)[0] == above);
+    }
+    // Just below L/2: fast path, unchanged.
+    {
+      const T half_below = std::nextafter(L / 2, T{0});
+      const Point<T, 2> p{half_below, T{0}};
+      CHECK(g.offset(p, q)[0] == half_below);
+    }
+    // Just above L/2: fast path, minimum image flips.
+    {
+      const T half_above = std::nextafter(L / 2, L);
+      const Point<T, 2> p{half_above, T{0}};
+      CHECK(g.offset(p, q)[0] == half_above - L);
+    }
   }
-  // Exactly L: fast path, offset is 0.
-  {
-    const Point<T, 2> p{L, T{0}};
-    CHECK(g.offset(p, q)[0] == T{0});
-  }
-  // Just above L: first value to take the slow (std::remainder) path.
-  {
-    const Point<T, 2> p{std::nextafter(L, std::numeric_limits<T>::infinity()), T{0}};
-    CHECK(g.offset(p, q)[0] == above);
-  }
-  // Just below L/2: fast path, unchanged.
-  {
-    const T half_below = std::nextafter(L / 2, T{0});
-    const Point<T, 2> p{half_below, T{0}};
-    CHECK(g.offset(p, q)[0] == half_below);
-  }
-  // Just above L/2: fast path, minimum image flips.
-  {
-    const T half_above = std::nextafter(L / 2, L);
-    const Point<T, 2> p{half_above, T{0}};
-    CHECK(g.offset(p, q)[0] == half_above - L);
-  }
-}
 } // namespace
 
 TEST_CASE("Periodic: reduction is exact at the values adjacent to both boundaries", "[geometry][periodic][reduction]")

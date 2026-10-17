@@ -13,48 +13,55 @@
 
 namespace tedder
 {
-template <class T>
-concept Real = std::floating_point<T>;
+  template <class T>
+  concept Real = std::floating_point<T>;
 
-// ---------------------------------------------------------------- domain:
+  // ---------------------------------------------------------------- domain:
 
-template <Real T, std::size_t D> using Point = std::array<T, D>;
+  template <Real T, std::size_t D>
+  using Point = std::array<T, D>;
 
-template <Real T, std::size_t D> using PointCloud = std::vector<Point<T, D>>;
+  template <Real T, std::size_t D>
+  using PointCloud = std::vector<Point<T, D>>;
 
-template <Real T, std::size_t D> using PointView = std::span<const Point<T, D>>;
+  template <Real T, std::size_t D>
+  using PointView = std::span<const Point<T, D>>;
 
-// ---------------------------------------------------------------- codomain:
+  // ---------------------------------------------------------------- codomain:
 
-// C=1 scalar, C=D vector, C=2 complex-as-R2, C=D*D tensor
-template <Real T, std::size_t C> using Value = std::array<T, C>;
+  // C=1 scalar, C=D vector, C=2 complex-as-R2, C=D*D tensor
+  template <Real T, std::size_t C>
+  using Value = std::array<T, C>;
 
-template <Real T, std::size_t C> using ValueField = std::vector<Value<T, C>>;
+  template <Real T, std::size_t C>
+  using ValueField = std::vector<Value<T, C>>;
 
-template <Real T, std::size_t C> using ValueView = std::span<const Value<T, C>>;
+  template <Real T, std::size_t C>
+  using ValueView = std::span<const Value<T, C>>;
 
-// ---------------------------------------------------------------- geometry:
+  // ---------------------------------------------------------------- geometry:
 
-// A domain provides only a displacement (offset) and a bandwidth limit
-// (max_bandwidth). distance_squared and distance are free functions built on
-// offset. Euclidean and Periodic both satisfy it.
-template <class G>
-concept Domain = requires(const G &g, const typename G::point_type &p, const typename G::point_type &q) {
-  typename G::scalar_type;
-  typename G::point_type;
-  // Check constant-expression suitability before evaluating dimension > 0.
-  typename std::integral_constant<std::size_t, G::dimension>;
-  requires Real<typename G::scalar_type>;
-  requires std::integral_constant<std::size_t, G::dimension>::value > 0;
-  requires std::same_as<typename G::point_type, Point<typename G::scalar_type, G::dimension>>;
-  { G::dimension } -> std::convertible_to<std::size_t>;
-  // offset(p, q) is p - q. On a periodic axis, wrapped to the nearest image.
-  { g.offset(p, q) } noexcept -> std::same_as<typename G::point_type>;
-  { g.max_bandwidth() } noexcept -> std::same_as<typename G::scalar_type>;
-};
+  // A domain provides only a displacement (offset) and a bandwidth limit
+  // (max_bandwidth). distance_squared and distance are free functions built on
+  // offset. Euclidean and Periodic both satisfy it.
+  template <class G>
+  concept Domain = requires(const G &g, const typename G::point_type &p, const typename G::point_type &q) {
+    typename G::scalar_type;
+    typename G::point_type;
+    // Check constant-expression suitability before evaluating dimension > 0.
+    typename std::integral_constant<std::size_t, G::dimension>;
+    requires Real<typename G::scalar_type>;
+    requires std::integral_constant<std::size_t, G::dimension>::value > 0;
+    requires std::same_as<typename G::point_type, Point<typename G::scalar_type, G::dimension>>;
+    { G::dimension } -> std::convertible_to<std::size_t>;
+    // offset(p, q) is p - q. On a periodic axis, wrapped to the nearest image.
+    { g.offset(p, q) } noexcept -> std::same_as<typename G::point_type>;
+    { g.max_bandwidth() } noexcept -> std::same_as<typename G::scalar_type>;
+  };
 
-template <Real T, std::size_t D> struct Euclidean
-{
+  template <Real T, std::size_t D>
+  struct Euclidean
+  {
     using scalar_type = T;
     using point_type = Point<T, D>;
     static constexpr std::size_t dimension = D;
@@ -68,13 +75,14 @@ template <Real T, std::size_t D> struct Euclidean
     }
 
     constexpr scalar_type max_bandwidth() const noexcept { return std::numeric_limits<scalar_type>::infinity(); }
-};
+  };
 
-// Box that wraps around on some axes.
-// length[d] <= 0 means axis d does not wrap.
-// Default (all zeros) means nothing wraps, same as Euclidean.
-template <Real T, std::size_t D> struct Periodic
-{
+  // Box that wraps around on some axes.
+  // length[d] <= 0 means axis d does not wrap.
+  // Default (all zeros) means nothing wraps, same as Euclidean.
+  template <Real T, std::size_t D>
+  struct Periodic
+  {
     using scalar_type = T;
     using point_type = Point<T, D>;
     static constexpr std::size_t dimension = D;
@@ -100,21 +108,21 @@ template <Real T, std::size_t D> struct Periodic
       assert(is_valid());
       point_type r{};
       for (std::size_t d = 0; d < D; ++d)
+      {
+        scalar_type t = p[d] - q[d];
+        scalar_type L = length[d];
+        if (L > scalar_type{})
         {
-          scalar_type t = p[d] - q[d];
-          scalar_type L = length[d];
-          if (L > scalar_type{})
-            {
-              if (std::abs(t) <= L) [[likely]]
-                t -= L * std::round(t / L);
-              else
-                {
-                  t = std::remainder(p[d], L) - std::remainder(q[d], L);
-                  t -= L * std::round(t / L);
-                }
-            }
-          r[d] = t;
+          if (std::abs(t) <= L) [[likely]]
+            t -= L * std::round(t / L);
+          else
+          {
+            t = std::remainder(p[d], L) - std::remainder(q[d], L);
+            t -= L * std::round(t / L);
+          }
         }
+        r[d] = t;
+      }
       return r;
     }
 
@@ -131,43 +139,45 @@ template <Real T, std::size_t D> struct Periodic
           m = std::min(m, length[d] / 2);
       return m;
     }
-};
+  };
 
-// Sum of the squared components of g.offset(p, q), in axis order.
-// A domain cannot override it. The library calls it qualified
-// (tedder::distance_squared).
-// Summing squares can overflow or underflow even when the true distance is
-// representable: Euclidean<double,1> with p = {1e200}, q = {0} gives infinity.
-template <Domain G>
-constexpr typename G::scalar_type distance_squared(const G &g, const typename G::point_type &p, const typename G::point_type &q) noexcept
-{
-  const typename G::point_type r = g.offset(p, q);
-  typename G::scalar_type s{};
-  for (const auto x : r)
-    s += x * x;
-  return s;
-}
+  // Sum of the squared components of g.offset(p, q), in axis order.
+  // A domain cannot override it. The library calls it qualified
+  // (tedder::distance_squared).
+  // Summing squares can overflow or underflow even when the true distance is
+  // representable: Euclidean<double,1> with p = {1e200}, q = {0} gives infinity.
+  template <Domain G>
+  constexpr typename G::scalar_type distance_squared(const G &g, const typename G::point_type &p, const typename G::point_type &q) noexcept
+  {
+    const typename G::point_type r = g.offset(p, q);
+    typename G::scalar_type s{};
+    for (const auto x : r)
+      s += x * x;
+    return s;
+  }
 
-// sqrt of distance_squared; inherits its overflow and underflow limit.
-template <Domain G>
-constexpr typename G::scalar_type distance(const G &g, const typename G::point_type &p, const typename G::point_type &q) noexcept
-{
-  return std::sqrt(tedder::distance_squared(g, p, q));
-}
+  // sqrt of distance_squared; inherits its overflow and underflow limit.
+  template <Domain G>
+  constexpr typename G::scalar_type distance(const G &g, const typename G::point_type &p, const typename G::point_type &q) noexcept
+  {
+    return std::sqrt(tedder::distance_squared(g, p, q));
+  }
 
-// True if h is a usable bandwidth for this domain.
-// Also rejects zero, negative and NaN.
-template <Domain G> constexpr bool admits_bandwidth(const G &g, typename G::scalar_type h) noexcept
-{
-  return h > typename G::scalar_type{} && h < g.max_bandwidth();
-}
+  // True if h is a usable bandwidth for this domain.
+  // Also rejects zero, negative and NaN.
+  template <Domain G>
+  constexpr bool admits_bandwidth(const G &g, typename G::scalar_type h) noexcept
+  {
+    return h > typename G::scalar_type{} && h < g.max_bandwidth();
+  }
 
-// ---------------------------------------------------------------- bundles
+  // ---------------------------------------------------------------- bundles
 
-// Points and their values, side by side. Owns nothing.
-// Both underlying storages must outlive this object, must stay valid and must be the same length.
-template <Real T, std::size_t D, std::size_t C> class SampleView
-{
+  // Points and their values, side by side. Owns nothing.
+  // Both underlying storages must outlive this object, must stay valid and must be the same length.
+  template <Real T, std::size_t D, std::size_t C>
+  class SampleView
+  {
   public:
     using scalar_type = T;
     static constexpr std::size_t dimension = D, components = C;
@@ -205,11 +215,12 @@ template <Real T, std::size_t D, std::size_t C> class SampleView
 
     // Points and values are index-aligned. Checked wherever it is relied on.
     constexpr bool aligned() const noexcept { return points_.size() == values_.size(); }
-};
+  };
 
-// Small fixed-size matrix. Stored flat, row by row.
-template <Real T, std::size_t R, std::size_t C> struct Matrix
-{
+  // Small fixed-size matrix. Stored flat, row by row.
+  template <Real T, std::size_t R, std::size_t C>
+  struct Matrix
+  {
     static_assert(R > 0 && C > 0);
     std::array<T, R * C> m{}; // flat, row-major
     static constexpr std::size_t rows = R, cols = C;
@@ -219,57 +230,61 @@ template <Real T, std::size_t R, std::size_t C> struct Matrix
     constexpr const T &operator[](std::size_t r, std::size_t c) const noexcept { return m[r * cols + c]; }
     constexpr T *data() noexcept { return m.data(); }
     constexpr const T *data() const noexcept { return m.data(); }
-};
+  };
 
-// What a LocalFit holds:
-//   constant  -> value
-//   linear    -> value and jacobian
-//   quadratic -> value, jacobian and hessians
-enum class FitOrder : unsigned
-{
-  constant = 0,
-  linear = 1,
-  quadratic = 2
-};
+  // What a LocalFit holds:
+  //   constant  -> value
+  //   linear    -> value and jacobian
+  //   quadratic -> value, jacobian and hessians
+  enum class FitOrder : unsigned
+  {
+    constant = 0,
+    linear = 1,
+    quadratic = 2
+  };
 
-// Result of one local fit: the reconstructed field at the evaluation point,
-// in physical coordinates. Members depend on FitOrder (default linear);
-// orders above quadratic are rejected by the constraint.
-// jacobian[c, d] = d f_c / d x_d
-template <Real T, std::size_t D, std::size_t C, FitOrder P = FitOrder::linear>
-  requires(P <= FitOrder::quadratic)
-struct LocalFit;
+  // Result of one local fit: the reconstructed field at the evaluation point,
+  // in physical coordinates. Members depend on FitOrder (default linear);
+  // orders above quadratic are rejected by the constraint.
+  // jacobian[c, d] = d f_c / d x_d
+  template <Real T, std::size_t D, std::size_t C, FitOrder P = FitOrder::linear>
+    requires(P <= FitOrder::quadratic)
+  struct LocalFit;
 
-template <Real T, std::size_t D, std::size_t C> struct LocalFit<T, D, C, FitOrder::constant>
-{
+  template <Real T, std::size_t D, std::size_t C>
+  struct LocalFit<T, D, C, FitOrder::constant>
+  {
     Value<T, C> value{}; // f(x)
-};
+  };
 
-template <Real T, std::size_t D, std::size_t C> struct LocalFit<T, D, C, FitOrder::linear>
-{
+  template <Real T, std::size_t D, std::size_t C>
+  struct LocalFit<T, D, C, FitOrder::linear>
+  {
     Value<T, C> value{};        // f(x)
     Matrix<T, C, D> jacobian{}; // jacobian[c, d] = d f_c / d x_d
-};
+  };
 
-template <Real T, std::size_t D, std::size_t C> struct LocalFit<T, D, C, FitOrder::quadratic>
-{
+  template <Real T, std::size_t D, std::size_t C>
+  struct LocalFit<T, D, C, FitOrder::quadratic>
+  {
     Value<T, C> value{};        // f(x)
     Matrix<T, C, D> jacobian{}; // jacobian[c, d] = d f_c / d x_d
     // hessians[c][i, j] = d^2 f_c / (d x_i d x_j); each matrix is symmetric
     std::array<Matrix<T, D, D>, C> hessians{};
-};
+  };
 
-// True for the orders whose LocalFit has a jacobian / hessians; for
-// constraining generic code.
-template <FitOrder P>
-concept WithJacobian = (P >= FitOrder::linear);
-template <FitOrder P>
-concept WithHessians = WithJacobian<P> && (P >= FitOrder::quadratic);
+  // True for the orders whose LocalFit has a jacobian / hessians; for
+  // constraining generic code.
+  template <FitOrder P>
+  concept WithJacobian = (P >= FitOrder::linear);
+  template <FitOrder P>
+  concept WithHessians = WithJacobian<P> && (P >= FitOrder::quadratic);
 
-// ---------------------------------------------------------------- invariants
+  // ---------------------------------------------------------------- invariants
 
-// True if array<T,N> has no padding, only a storage-size observation.
-// It alone does not establish portable serialization or permission to treat nested arrays as one scalar array
-template <Real T, std::size_t N> inline constexpr bool is_flat = (sizeof(std::array<T, N>) == N * sizeof(T));
+  // True if array<T,N> has no padding, only a storage-size observation.
+  // It alone does not establish portable serialization or permission to treat nested arrays as one scalar array
+  template <Real T, std::size_t N>
+  inline constexpr bool is_flat = (sizeof(std::array<T, N>) == N * sizeof(T));
 
 } // namespace tedder

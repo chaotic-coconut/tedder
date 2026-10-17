@@ -22,9 +22,9 @@ static_assert(Domain<Periodic<float, 3>>);
 // And things that are not domains must not, or the concept checks nothing.
 namespace
 {
-struct Empty
-{
-};
+  struct Empty
+  {
+  };
 } // namespace
 
 static_assert(!Domain<Empty>);

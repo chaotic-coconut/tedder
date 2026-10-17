@@ -128,16 +128,16 @@ static_assert(Matrix<double, 2, 2>::rows == 2 && Matrix<double, 2, 2>::cols == 2
 
 namespace
 {
-template <class F>
-concept HasValue = requires(const F &f) { f.value; };
-template <class F>
-concept HasJacobian = requires(const F &f) { f.jacobian; };
-template <class F>
-concept HasHessians = requires(const F &f) { f.hessians; };
+  template <class F>
+  concept HasValue = requires(const F &f) { f.value; };
+  template <class F>
+  concept HasJacobian = requires(const F &f) { f.jacobian; };
+  template <class F>
+  concept HasHessians = requires(const F &f) { f.hessians; };
 
-// True when LocalFit<double, 2, 1, P> is well-formed, i.e. P passes the order constraint.
-template <FitOrder P>
-concept ValidFitOrder = requires { typename LocalFit<double, 2, 1, P>; };
+  // True when LocalFit<double, 2, 1, P> is well-formed, i.e. P passes the order constraint.
+  template <FitOrder P>
+  concept ValidFitOrder = requires { typename LocalFit<double, 2, 1, P>; };
 } // namespace
 
 static_assert(std::same_as<LocalFit<double, 3, 2>, LocalFit<double, 3, 2, FitOrder::linear>>);
@@ -186,99 +186,106 @@ TEST_CASE("LocalFit: rectangular Jacobian keeps D and C distinct", "[types][loca
 
 namespace
 {
-// Distinct per (c, i, j) and unrelated to any storage index, so a check cannot
-// pass by matching the Matrix storage formula.
-template <Real T> constexpr T tag(std::size_t c, std::size_t i, std::size_t j) { return static_cast<T>(c * 1000 + i * 10 + j) + T{1}; }
+  // Distinct per (c, i, j) and unrelated to any storage index, so a check cannot
+  // pass by matching the Matrix storage formula.
+  template <Real T>
+  constexpr T tag(std::size_t c, std::size_t i, std::size_t j)
+  {
+    return static_cast<T>(c * 1000 + i * 10 + j) + T{1};
+  }
 
-// jacobian is Matrix<T,C,D>: C rows, D columns. Filling every entry
-// independently is the regression check for a transposed declaration that
-// read or wrote past the end of a smaller dimension (a heap overread when
-// C > D). Applies to every order that carries a jacobian.
-template <Real T, std::size_t D, std::size_t C, FitOrder P>
-  requires WithJacobian<P>
-void check_localfit_jacobian_shape_and_fill()
-{
-  using Fit = LocalFit<T, D, C, P>;
-  using Jacobian = decltype(std::declval<Fit>().jacobian);
+  // jacobian is Matrix<T,C,D>: C rows, D columns. Filling every entry
+  // independently is the regression check for a transposed declaration that
+  // read or wrote past the end of a smaller dimension (a heap overread when
+  // C > D). Applies to every order that carries a jacobian.
+  template <Real T, std::size_t D, std::size_t C, FitOrder P>
+    requires WithJacobian<P>
+  void check_localfit_jacobian_shape_and_fill()
+  {
+    using Fit = LocalFit<T, D, C, P>;
+    using Jacobian = decltype(std::declval<Fit>().jacobian);
 
-  static_assert(Jacobian::rows == C);
-  static_assert(Jacobian::cols == D);
+    static_assert(Jacobian::rows == C);
+    static_assert(Jacobian::cols == D);
 
-  Fit fit;
-  for (std::size_t c = 0; c < C; ++c)
-    for (std::size_t d = 0; d < D; ++d)
-      fit.jacobian[c, d] = tag<T>(c, d, 0);
-
-  for (std::size_t c = 0; c < C; ++c)
-    for (std::size_t d = 0; d < D; ++d)
-      CHECK(fit.jacobian[c, d] == tag<T>(c, d, 0));
-}
-
-// hessians is std::array<Matrix<T,D,D>,C>: one square D x D matrix per
-// component. Every entry of every matrix must be independently addressable.
-template <Real T, std::size_t D, std::size_t C> void check_localfit_hessians_shape_and_fill()
-{
-  using Fit = LocalFit<T, D, C, FitOrder::quadratic>;
-  using Hessians = decltype(std::declval<Fit>().hessians);
-
-  static_assert(std::same_as<Hessians, std::array<Matrix<T, D, D>, C>>);
-  static_assert(Hessians::value_type::rows == D);
-  static_assert(Hessians::value_type::cols == D);
-
-  Fit fit;
-  CHECK(fit.hessians.size() == C);
-
-  for (std::size_t c = 0; c < C; ++c)
-    for (std::size_t i = 0; i < D; ++i)
-      for (std::size_t j = 0; j < D; ++j)
-        fit.hessians[c][i, j] = tag<T>(c, i, j);
-
-  for (std::size_t c = 0; c < C; ++c)
-    for (std::size_t i = 0; i < D; ++i)
-      for (std::size_t j = 0; j < D; ++j)
-        CHECK(std::as_const(fit).hessians[c][i, j] == tag<T>(c, i, j));
-}
-
-template <Real T, std::size_t D, std::size_t C, FitOrder P> void check_localfit_defaults()
-{
-  LocalFit<T, D, C, P> fit;
-
-  for (std::size_t c = 0; c < C; ++c)
-    CHECK(fit.value[c] == T{0});
-
-  if constexpr (WithJacobian<P>)
+    Fit fit;
     for (std::size_t c = 0; c < C; ++c)
       for (std::size_t d = 0; d < D; ++d)
-        CHECK(fit.jacobian[c, d] == T{0});
+        fit.jacobian[c, d] = tag<T>(c, d, 0);
 
-  if constexpr (WithHessians<P>)
+    for (std::size_t c = 0; c < C; ++c)
+      for (std::size_t d = 0; d < D; ++d)
+        CHECK(fit.jacobian[c, d] == tag<T>(c, d, 0));
+  }
+
+  // hessians is std::array<Matrix<T,D,D>,C>: one square D x D matrix per
+  // component. Every entry of every matrix must be independently addressable.
+  template <Real T, std::size_t D, std::size_t C>
+  void check_localfit_hessians_shape_and_fill()
+  {
+    using Fit = LocalFit<T, D, C, FitOrder::quadratic>;
+    using Hessians = decltype(std::declval<Fit>().hessians);
+
+    static_assert(std::same_as<Hessians, std::array<Matrix<T, D, D>, C>>);
+    static_assert(Hessians::value_type::rows == D);
+    static_assert(Hessians::value_type::cols == D);
+
+    Fit fit;
+    CHECK(fit.hessians.size() == C);
+
     for (std::size_t c = 0; c < C; ++c)
       for (std::size_t i = 0; i < D; ++i)
         for (std::size_t j = 0; j < D; ++j)
-          CHECK(fit.hessians[c][i, j] == T{0});
-}
+          fit.hessians[c][i, j] = tag<T>(c, i, j);
 
-template <Real T> void check_localfit_all_shapes()
-{
-  // C < D, C > D (the historical overread case), C == D.
-  check_localfit_jacobian_shape_and_fill<T, 3, 1, FitOrder::linear>();
-  check_localfit_jacobian_shape_and_fill<T, 2, 3, FitOrder::linear>();
-  check_localfit_jacobian_shape_and_fill<T, 3, 3, FitOrder::linear>();
+    for (std::size_t c = 0; c < C; ++c)
+      for (std::size_t i = 0; i < D; ++i)
+        for (std::size_t j = 0; j < D; ++j)
+          CHECK(std::as_const(fit).hessians[c][i, j] == tag<T>(c, i, j));
+  }
 
-  // The quadratic fit carries the same jacobian.
-  check_localfit_jacobian_shape_and_fill<T, 3, 2, FitOrder::quadratic>();
-  check_localfit_jacobian_shape_and_fill<T, 2, 3, FitOrder::quadratic>();
+  template <Real T, std::size_t D, std::size_t C, FitOrder P>
+  void check_localfit_defaults()
+  {
+    LocalFit<T, D, C, P> fit;
 
-  check_localfit_hessians_shape_and_fill<T, 3, 2>(); // C < D
-  check_localfit_hessians_shape_and_fill<T, 2, 3>(); // C > D
-  check_localfit_hessians_shape_and_fill<T, 3, 3>(); // C == D
+    for (std::size_t c = 0; c < C; ++c)
+      CHECK(fit.value[c] == T{0});
 
-  check_localfit_defaults<T, 3, 2, FitOrder::constant>();
-  check_localfit_defaults<T, 3, 2, FitOrder::linear>();
-  check_localfit_defaults<T, 3, 2, FitOrder::quadratic>();
-  check_localfit_defaults<T, 2, 3, FitOrder::quadratic>();
-  check_localfit_defaults<T, 3, 3, FitOrder::quadratic>();
-}
+    if constexpr (WithJacobian<P>)
+      for (std::size_t c = 0; c < C; ++c)
+        for (std::size_t d = 0; d < D; ++d)
+          CHECK(fit.jacobian[c, d] == T{0});
+
+    if constexpr (WithHessians<P>)
+      for (std::size_t c = 0; c < C; ++c)
+        for (std::size_t i = 0; i < D; ++i)
+          for (std::size_t j = 0; j < D; ++j)
+            CHECK(fit.hessians[c][i, j] == T{0});
+  }
+
+  template <Real T>
+  void check_localfit_all_shapes()
+  {
+    // C < D, C > D (the historical overread case), C == D.
+    check_localfit_jacobian_shape_and_fill<T, 3, 1, FitOrder::linear>();
+    check_localfit_jacobian_shape_and_fill<T, 2, 3, FitOrder::linear>();
+    check_localfit_jacobian_shape_and_fill<T, 3, 3, FitOrder::linear>();
+
+    // The quadratic fit carries the same jacobian.
+    check_localfit_jacobian_shape_and_fill<T, 3, 2, FitOrder::quadratic>();
+    check_localfit_jacobian_shape_and_fill<T, 2, 3, FitOrder::quadratic>();
+
+    check_localfit_hessians_shape_and_fill<T, 3, 2>(); // C < D
+    check_localfit_hessians_shape_and_fill<T, 2, 3>(); // C > D
+    check_localfit_hessians_shape_and_fill<T, 3, 3>(); // C == D
+
+    check_localfit_defaults<T, 3, 2, FitOrder::constant>();
+    check_localfit_defaults<T, 3, 2, FitOrder::linear>();
+    check_localfit_defaults<T, 3, 2, FitOrder::quadratic>();
+    check_localfit_defaults<T, 2, 3, FitOrder::quadratic>();
+    check_localfit_defaults<T, 3, 3, FitOrder::quadratic>();
+  }
 } // namespace
 
 TEST_CASE("LocalFit: every jacobian and hessian entry is independently addressable (double)", "[types][localfit]")
@@ -351,12 +358,12 @@ TEST_CASE("SampleView: points() and values() stay index-aligned", "[types][sampl
   REQUIRE(pts.size() == 4);
   REQUIRE(vals.size() == 4);
   for (std::size_t i = 0; i < 4; ++i)
-    {
-      CHECK(pts[i] == points[i]);
-      CHECK(vals[i] == values[i]);
-      CHECK(pts[i] == view.point(i));
-      CHECK(vals[i] == view.value(i));
-    }
+  {
+    CHECK(pts[i] == points[i]);
+    CHECK(vals[i] == values[i]);
+    CHECK(pts[i] == view.point(i));
+    CHECK(vals[i] == view.value(i));
+  }
 }
 
 TEST_CASE("SampleView: subview variants stay aligned", "[types][sampleview]")
@@ -366,15 +373,15 @@ TEST_CASE("SampleView: subview variants stay aligned", "[types][sampleview]")
   const SampleView<double, 2, 1> view(points, values);
 
   auto check = [&](std::size_t first, std::size_t count)
+  {
+    const auto sub = view.subview(first, count);
+    REQUIRE(sub.size() == count);
+    for (std::size_t i = 0; i < count; ++i)
     {
-      const auto sub = view.subview(first, count);
-      REQUIRE(sub.size() == count);
-      for (std::size_t i = 0; i < count; ++i)
-        {
-          CHECK(sub.point(i) == points[first + i]);
-          CHECK(sub.value(i) == values[first + i]);
-        }
-    };
+      CHECK(sub.point(i) == points[first + i]);
+      CHECK(sub.value(i) == values[first + i]);
+    }
+  };
 
   check(0, 4); // full
   check(0, 2); // prefix
@@ -395,12 +402,12 @@ TEST_CASE("SampleView: subview variants stay aligned", "[types][sampleview]")
 
 namespace
 {
-// Every generic function in the library will hold a sample set through a
-// const reference; subview() must compile and work through one.
-SampleView<double, 2, 1> take_subview_by_const_ref(const SampleView<double, 2, 1> &view, std::size_t first, std::size_t count)
-{
-  return view.subview(first, count);
-}
+  // Every generic function in the library will hold a sample set through a
+  // const reference; subview() must compile and work through one.
+  SampleView<double, 2, 1> take_subview_by_const_ref(const SampleView<double, 2, 1> &view, std::size_t first, std::size_t count)
+  {
+    return view.subview(first, count);
+  }
 } // namespace
 
 TEST_CASE("SampleView: subview works through a const reference", "[types][sampleview]")
@@ -426,10 +433,10 @@ TEST_CASE("SampleView: copies see the same elements", "[types][sampleview]")
   SampleView<double, 2, 1> copy = view;
   REQUIRE(copy.size() == view.size());
   for (std::size_t i = 0; i < view.size(); ++i)
-    {
-      CHECK(copy.point(i) == view.point(i));
-      CHECK(copy.value(i) == view.value(i));
-    }
+  {
+    CHECK(copy.point(i) == view.point(i));
+    CHECK(copy.value(i) == view.value(i));
+  }
 }
 
 static_assert(SampleView<double, 2, 1>::dimension == 2);
@@ -438,26 +445,26 @@ static_assert(std::same_as<SampleView<double, 2, 1>::scalar_type, double>);
 
 namespace
 {
-// Namespace-scope storage so a constexpr fixture never references a local.
-static constexpr std::array<Point<double, 2>, 4> g_cpoints{{{0.0, 0.0}, {1.0, 1.0}, {2.0, 2.0}, {3.0, 3.0}}};
-static constexpr std::array<Value<double, 1>, 4> g_cvalues{{{10.0}, {11.0}, {12.0}, {13.0}}};
+  // Namespace-scope storage so a constexpr fixture never references a local.
+  static constexpr std::array<Point<double, 2>, 4> g_cpoints{{{0.0, 0.0}, {1.0, 1.0}, {2.0, 2.0}, {3.0, 3.0}}};
+  static constexpr std::array<Value<double, 1>, 4> g_cvalues{{{10.0}, {11.0}, {12.0}, {13.0}}};
 
-constexpr bool check_sampleview_constexpr()
-{
-  SampleView<double, 2, 1> view(g_cpoints, g_cvalues);
-  if (view.size() != 4)
-    return false;
+  constexpr bool check_sampleview_constexpr()
+  {
+    SampleView<double, 2, 1> view(g_cpoints, g_cvalues);
+    if (view.size() != 4)
+      return false;
 
-  const auto sub = view.subview(1, 2);
-  if (sub.size() != 2)
-    return false;
-  if (sub.point(0) != g_cpoints[1] || sub.point(1) != g_cpoints[2])
-    return false;
-  if (sub.value(0) != g_cvalues[1] || sub.value(1) != g_cvalues[2])
-    return false;
+    const auto sub = view.subview(1, 2);
+    if (sub.size() != 2)
+      return false;
+    if (sub.point(0) != g_cpoints[1] || sub.point(1) != g_cpoints[2])
+      return false;
+    if (sub.value(0) != g_cvalues[1] || sub.value(1) != g_cvalues[2])
+      return false;
 
-  return true;
-}
+    return true;
+  }
 } // namespace
 
 TEST_CASE("SampleView: works at compile time", "[types][sampleview]")
