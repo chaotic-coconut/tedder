@@ -9,7 +9,7 @@ Later stages are planned:
 
 | Stage | Focus | Detailed document |
 | --- | --- | --- |
-| 02 — Reference neighbour search | Search contract and brute-force implementation | Not yet present; contracts in [ADR 0003](docs/adr/0003-geometry-local-frame-support.md) §3–§5 |
+| 02 — Reference neighbour search | Search contract and brute-force implementation | [Search plan](docs/stages/02-neighbour-search/search-plan.md) (draft); contracts in [ADR 0003](docs/adr/0003-geometry-local-frame-support.md) §3–§5 |
 | 03 — Degree 0 and 1 fitting | Fixed-bandwidth local fits | Not yet present |
 | 04 — Degree 2 fitting | Quadratic fitting | Not yet present |
 | 05 — nanoflann backend | kd-tree backend | Not yet present |

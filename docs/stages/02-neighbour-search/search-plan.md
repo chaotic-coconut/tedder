@@ -1,0 +1,247 @@
+# tedder: Stage 02 neighbour-search plan
+
+Status: draft for the author's review. The decisions marked "author" below
+must be made before S1 starts.
+
+This plan implements the parts of
+[ADR 0003](../../adr/0003-geometry-local-frame-support.md) that turn a query
+point and a bandwidth into a candidate set:
+
+- §3: the isotropic local frame, forward direction only (`r ↦ ξ`);
+- §4: the support variable `q²` and the candidate test `q² < 1`;
+- §5: the search contract, a brute-force backend, and the step that turns
+  backend output into candidates (sort, remove duplicates, support test,
+  count).
+
+The ADR is authoritative; this plan does not repeat its reasons.
+
+## Scope
+
+In scope:
+
+- the frame, `q²` and the candidate test;
+- a brute-force backend that meets the §5 contract;
+- candidate selection: sort, remove duplicates, test, count;
+- their tests, for `float` and `double`.
+
+Out of scope:
+
+- kernel weights, the active-sample count, and fitting (Stage 03);
+- transforming derivatives back to physical coordinates (Stage 03, §3);
+- a public search concept. It waits for the second backend, nanoflann, in
+  Stage 05, as the workflow guide asks;
+- frames other than `B = I/h`, per-axis or variable bandwidths;
+- validating `h` and `x₀` with reported errors. That is the fit's job in
+  Stage 03 (ADR 0004 §7); here they are preconditions.
+
+`field.hpp` and `kernel.hpp` do not change.
+
+## Decisions for the author
+
+| ID | Question | Recommendation |
+| --- | --- | --- |
+| A1 | Brute force: return every index, or prefilter with the canonical `q² < 1` test? This is ADR 0003's open point. | Every index. It is complete without any argument, it does not depend on the frame, and candidate selection stays the one place that decides. The cost is `O(N)` per query either way. |
+| A2 | Search output: a caller-owned buffer, or a returned vector? | A caller-owned `std::vector<std::size_t>&` whose contents the backend replaces. After the first query, no allocation. |
+| A3 | Public surface in Stage 02. | None: everything in `namespace detail`. The fit in Stage 03 is the first public entry point, and the search concept comes with Stage 05. |
+| A4 | Headers and names. | For example `include/tedder/detail/frame.hpp` and `include/tedder/detail/search.hpp`, with tests in `tests/test_search.cpp`. Pick one spelling, `neighbour` or `neighbor`, and keep it. |
+| A5 | Non-finite sample coordinates (ADR 0003 open point). | Keep them a precondition, as ADR 0001 does. Optionally assert finiteness in candidate selection, which costs nothing in Release builds. Decide the checked-failure question in Stage 03, where errors are reported. |
+
+## Order of work
+
+| Step | Work | Tests |
+| --- | --- | --- |
+| S1 | Frame and `q²` | T1 |
+| S2 | Candidate test | T2 |
+| S3 | Candidate selection | T3 |
+| S4 | Brute-force backend | T4 |
+| S5 | End-to-end configurations | T5, T6 |
+
+The author designs and writes S1 to S4. AI may write the tests when
+delegated, and reviews units and inclusivity (whether the boundary is in or
+out), as the workflow guide's stage table says.
+
+## S1. Frame and `q²`
+
+- **Frame.** A concrete `detail` type for `B = I/h`. Its only Stage 02
+  operation maps a physical offset `r` to `ξ`, with `ξ_d = r_d / h`: one
+  division per component, as ADR 0003 §4 fixes. It never multiplies by
+  `1/h`.
+- **`q²`.** `q² = Σ ξ_d²`, summed in axis order `0 … D−1`.
+  - It is not `distance_squared(g, x, x₀) / h²`. That is the rejected
+    `r · r < h²` form, which fails for extreme `h`.
+- **Exactness, for tests only.** `r_d / h` is exact when `h` is a power of
+  two and the result stays normal.
+- **Precondition.** `admits_bandwidth(g, h)`, asserted where the frame is
+  built.
+
+Proposed shape, for the author to decide:
+
+```cpp
+namespace tedder::detail
+{
+  template <Real T, std::size_t D>
+  struct IsotropicFrame
+  {
+    T h;
+    constexpr Point<T, D> local(const Point<T, D> &r) const noexcept; // ξ = r / h
+  };
+
+  template <Real T, std::size_t D>
+  constexpr T squared_norm(const Point<T, D> &xi) noexcept; // q², axis order
+}
+```
+
+## S2. Candidate test
+
+A sample is a candidate exactly when `q² < 1`, written so that a NaN `q²`
+fails it (ADR 0003 §4). The boundary is excluded: `q² = 1` is not a
+candidate. The same function is used everywhere a candidate is decided.
+
+## S3. Candidate selection
+
+Input: the domain, the frame, `x₀`, the sample points, and the backend's
+index buffer. In place, it:
+
+1. sorts the indices and removes duplicates (`std::sort`, `std::unique`,
+   `erase`);
+2. keeps the indices whose `q²` passes S2, with `r = g.offset(x_i, x₀)`.
+
+The buffer then holds the candidates in ascending sample index, and its size
+is the candidate count of ADR 0004 §6.
+
+- **Preconditions:** every index is below the number of samples (asserted),
+  and `x₀` is finite.
+- **Kept for Stage 03:** `ξ` and `q²` are not stored. Stage 03 decides
+  whether to recompute them or to make candidate selection return them
+  alongside the indices. Recomputing gives the same values, because it uses
+  the same functions.
+
+## S4. Brute-force backend
+
+The reference backend for Stage 05's equivalence tests. It meets the §5
+contract: complete, extras allowed, duplicates allowed, no decisions.
+
+With A1 as recommended, a query replaces the buffer's contents with
+`0, 1, …, N−1`. It holds the domain and a `PointView` of the samples. The
+storage the view refers to must outlive the backend, as for `SampleView`.
+
+Proposed shape:
+
+```cpp
+namespace tedder::detail
+{
+  template <Domain G>
+  class BruteForceSearch
+  {
+  public:
+    BruteForceSearch(const G &g, PointView<typename G::scalar_type, G::dimension> points);
+    void query(const typename G::point_type &x0, typename G::scalar_type h,
+               std::vector<std::size_t> &indices) const;
+  };
+}
+```
+
+Indices are `std::size_t` positions in the `PointView`. A Stage 05 adapter
+converts nanoflann's index type.
+
+## Tests
+
+`tests/test_search.cpp` (or the name chosen in A4). Every test runs for
+`float` and `double`. No expected value is computed with the formula under
+test: expectations are hand-built, or come from integer arithmetic.
+
+### T1. Frame and `q²`
+
+- With `h` a power of two, `ξ` equals hand-computed dyadic values exactly,
+  including negative components.
+- `q²` of hand-chosen `ξ` with exactly representable squares and sums.
+
+### T2. Candidate test
+
+| Case | Expected |
+| --- | --- |
+| `r = (h, 0, 0)`, `h` a power of two: `q² = 1` exactly | not a candidate |
+| `r = (nextafter(h, 0), 0, 0)`: `ξ₀` is the largest value below 1 and `q² < 1` | candidate |
+| `q² = 0`, `r = 0` | candidate |
+| `q²` NaN, passed to the test directly | not a candidate |
+| `q² = +∞` | not a candidate |
+| Far outside: `h = min()`, `r = 1`. `q²` overflows to `+∞` | not a candidate |
+| Far inside: `h = max()`, `r = min()`. `ξ` underflows to 0 | candidate |
+
+The NaN case calls the test with a NaN `q²` directly. It does not pass
+non-finite coordinates, which would break a precondition. The last two rows
+are the range examples of ADR 0003 §4; both behave as listed in `float` and
+in `double`.
+
+### T3. Candidate selection
+
+Hand-built index buffers with a hand-listed expected result:
+
+- unsorted indices with duplicates give sorted, unique candidates;
+- indices outside the support (extras) are removed;
+- an empty buffer gives an empty result;
+- two samples at the same coordinates are both kept, as distinct indices;
+- the sample at `x₀` itself is kept.
+
+### T4. Brute-force backend
+
+For `N = 0`, `1` and a few more, a query returns every index exactly once,
+whatever `x₀` and `h`. The buffer's previous contents are replaced.
+
+### T5. Hand-built configurations
+
+The backend followed by candidate selection, against hand-listed candidate
+indices:
+
+- `Euclidean` in 1, 2 and 3 dimensions;
+- **periodic seam:** `Periodic` with `L = 1`, `x₀ = 1/32`. A sample at
+  `31/32` is at offset `−1/16`, a candidate for `h = 1/8`. The mirror case is
+  `x₀` near 1;
+- **mixed domain:** periodic in `x`, open in `y`, with a sample that is near
+  only across the seam in `x`;
+- **half-period tie:** `L = 1`, `h` the largest value below `1/2`, and a
+  sample exactly `1/2` away. It is not a candidate (ADR 0003 §4);
+- **no candidates:** samples present, none in the support;
+- **no samples.**
+
+All coordinates are dyadic, so every offset is exact.
+
+### T6. Dyadic grid against an integer oracle
+
+- **Grid:** `h = 2^(−3)`, `x₀` a multiple of `h` in `[0, 1]`, and samples
+  at `x₀ + m · 2^(−j) · h` for integer vectors `m` with `|m_d| ≤ 2^(j+1)`.
+  With `j = 10` in 3 dimensions, every coordinate, offset, `ξ`, square and
+  partial sum is exact in `float` and in `double`: the squares are below
+  `2^24` units of `2^(−2j)`, and so is their sum.
+- **Oracle:** the expected decision is integer arithmetic,
+  `Σ m_d² < 4^j`. It is independent of the code under test, and it includes
+  boundary points such as `m = (2^j, 0, 0)`.
+- **Domains:** run it for `Euclidean`, and for `Periodic` with `L = 1`,
+  `x₀` near 0 and the sample coordinates wrapped into `[0, 1)`, so that the
+  offsets cross the seam.
+
+In a check of random points of such grids in 3 dimensions, 200,000 for
+`Euclidean` and 100,000 for `Periodic` with wrapped coordinates, every
+offset was exact and every decision matched the integer oracle, in both
+types.
+
+Points off such a grid have no exact boundary: ADR 0003 §4 records
+misclassification within about 3 ulps of `q = 1` for every formula. So no test
+compares against exact arithmetic there.
+
+## Acceptance
+
+- The decisions A1 to A5 are made and recorded here before S1.
+- T1 to T6 pass with `tools/build-test.sh` (presets `dev-clang`, `dev-gcc`
+  and `asan-ubsan`) and in CI.
+- No public API is added.
+- ADR 0003's open point on brute-force prefiltering is closed with A1.
+- `ROADMAP.md` and `docs/INDEX.md` mark Stage 02 complete, and this plan
+  becomes reference material.
+
+## Open points
+
+- Whether candidate selection should return `ξ` and `q²` with the indices.
+  This is decided in Stage 03, by what the fit needs.
+- Whether a per-sample stamp array should replace sort and unique for very
+  large clouds (review D9). Not before measurements show the sort matters.
