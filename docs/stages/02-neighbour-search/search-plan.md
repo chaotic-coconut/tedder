@@ -21,7 +21,8 @@ In scope:
 - the frame, `q²` and the candidate test;
 - a brute-force backend that meets the §5 contract;
 - candidate selection: sort, remove duplicates, test, count;
-- their tests, for `float` and `double`.
+- their tests in `tests/test_search.cpp`, registered in
+  `tests/CMakeLists.txt`, for `float` and `double`.
 
 Out of scope:
 
@@ -40,7 +41,7 @@ Out of scope:
 | ID | Question | Decision |
 | --- | --- | --- |
 | A1 | Brute force: return every index, or prefilter with the canonical `q² < 1` test? This was ADR 0003's open point. | Every index. In the author's words, brute force is only for regular grids and maybe a fallback. It is complete without any argument, it does not depend on the frame, and candidate selection stays the one place that decides. |
-| A2 | Search output: a caller-owned buffer, or a returned vector? | A caller-owned `std::vector<std::size_t>&`, reused across queries, whose contents the backend replaces. After the first query, no allocation. |
+| A2 | Search output: a caller-owned buffer, or a returned vector? | A caller-owned `std::vector<std::size_t>&`, reused across queries. The backend clears and refills it, which keeps its capacity, so a query that returns no more indices than the buffer already holds does not allocate. |
 | A3 | Public surface in Stage 02. | None: everything in `namespace detail`. The fit in Stage 03 is the first public entry point, and the search concept comes with Stage 05. |
 | A4 | Spelling and names. | American spelling in code: identifiers, header and file names, as in the C++ standard library (`initializer_list`), Eigen (`normalize`) and nanoflann (`findNeighbors`). British prose stays as it is, and `docs/INDEX.md` lists both spellings as search terms. The rule is also in `AGENTS.md`. The proposed names (`IsotropicFrame`, `BruteForceSearch`, `detail/frame.hpp`, `detail/search.hpp`, `tests/test_search.cpp`) avoid the word either way. |
 | A5 | Non-finite sample coordinates. | A precondition, as in ADR 0001, with a debug-only assertion in candidate selection. Whether it becomes a reported failure is decided in Stage 03, where errors are reported. |
@@ -166,12 +167,16 @@ test: expectations are hand-built, or come from integer arithmetic.
 | Case | Expected |
 | --- | --- |
 | `r = (h, 0, 0)`, `h` a power of two: `q² = 1` exactly | not a candidate |
-| `r = (nextafter(h, 0), 0, 0)`: `ξ₀` is the largest value below 1 and `q² < 1` | candidate |
+| `r = (nextafter(h, 0), 0, 0)` with the same power-of-two `h`: `ξ₀` is the largest value below 1 and `q² < 1` | candidate |
 | `q² = 0`, `r = 0` | candidate |
 | `q²` NaN, passed to the test directly | not a candidate |
 | `q² = +∞` | not a candidate |
 | Far outside: `h = min()`, `r = 1`. `q²` overflows to `+∞` | not a candidate |
 | Far inside: `h = max()`, `r = min()`. `ξ` underflows to 0 | candidate |
+
+The predecessor row needs `h` to be a power of two. For other `h` the
+quotient can land two steps below 1: with `float` `h = nextafter(1, 2)` it is
+`0x1.fffffcp-1`.
 
 The NaN case calls the test with a NaN `q²` directly. It does not pass
 non-finite coordinates, which would break a precondition. The last two rows
@@ -193,6 +198,12 @@ Hand-built index buffers with a hand-listed expected result:
 For `N = 0`, `1` and a few more, a query returns every index exactly once,
 whatever `x₀` and `h`. The buffer's previous contents are replaced.
 
+A second query of the same size leaves the buffer's `data()` and
+`capacity()` unchanged (A2). This catches an implementation that builds a new
+vector and assigns it. It cannot see one that frees and reallocates at the
+same address; a counting `operator new` would, but it replaces the global
+allocator for the whole test executable, so it is not planned.
+
 ### T5. Hand-built configurations
 
 The backend followed by candidate selection, against hand-listed candidate
@@ -207,28 +218,36 @@ indices:
 - **half-period tie:** `L = 1`, `h` the largest value below `1/2`, and a
   sample exactly `1/2` away. It is not a candidate (ADR 0003 §4);
 - **no candidates:** samples present, none in the support;
-- **no samples.**
+- **no samples;**
+- **extreme bandwidth:** `Euclidean`, `x₀ = 0`, `h = min()`, samples at `0`,
+  `h/2` and `2h`. The first two are candidates and the third is not. The
+  rejected forms `r · r < h²` and `distance_squared / h²` reject the first two,
+  because `h²` underflows to 0, so this case checks that selection uses the
+  canonical `ξ` (ADR 0003 §4).
 
-All coordinates are dyadic, so every offset is exact.
+Except in the extreme-bandwidth case, all coordinates are multiples of `1/32`
+in `[0, 1]`, and `L = 1`. The difference of two such values is a multiple of
+`1/32` no larger than 1 in magnitude, so it is representable and the
+subtraction is exact; so are the periodic reductions. Being dyadic alone would
+not be enough: in `float`, `2^(−25) − 1` rounds to `−1`.
 
 ### T6. Dyadic grid against an integer oracle
 
 - **Grid:** `h = 2^(−3)`, `x₀` a multiple of `h` in `[0, 1]`, and samples
-  at `x₀ + m · 2^(−j) · h` for integer vectors `m` with `|m_d| ≤ 2^(j+1)`.
-  With `j = 10` in 3 dimensions, every coordinate, offset, `ξ`, square and
-  partial sum is exact in `float` and in `double`: the squares are below
-  `2^24` units of `2^(−2j)`, and so is their sum.
+  at `x₀ + m · 2^(−j) · h` for every integer vector `m` with
+  `|m_d| ≤ 2^(j+1)`. With `j = 3` in 3 dimensions that is `33³ = 35,937`
+  samples per `x₀`, checked exhaustively. Every coordinate, offset, `ξ`,
+  square and partial sum is exact in `float` and in `double`.
 - **Oracle:** the expected decision is integer arithmetic,
   `Σ m_d² < 4^j`. It is independent of the code under test, and it includes
-  boundary points such as `m = (2^j, 0, 0)`.
+  the six boundary points, `m = (±8, 0, 0)` and its permutations.
 - **Domains:** run it for `Euclidean`, and for `Periodic` with `L = 1`,
   `x₀` near 0 and the sample coordinates wrapped into `[0, 1)`, so that the
   offsets cross the seam.
 
-In a check of random points of such grids in 3 dimensions, 200,000 for
-`Euclidean` and 100,000 for `Periodic` with wrapped coordinates, every
-offset was exact and every decision matched the integer oracle, in both
-types.
+Checked exhaustively for three values of `x₀`, for `Euclidean` and for
+`Periodic` with wrapped coordinates, in both types: every offset was exact
+and every decision matched the integer oracle.
 
 Points off such a grid have no exact boundary: ADR 0003 §4 records
 misclassification within about 3 ulps of `q = 1` for every formula. So no test
@@ -237,11 +256,16 @@ compares against exact arithmetic there.
 ## Acceptance
 
 - The decisions A1 to A5 are recorded here (done before S1).
-- T1 to T6 pass with `tools/build-test.sh` (presets `dev-clang`, `dev-gcc`
-  and `asan-ubsan`) and in CI.
+- T1 to T6 are in `tests/test_search.cpp`, registered in
+  `tests/CMakeLists.txt`, and pass with `tools/build-test.sh` (presets
+  `dev-clang`, `dev-gcc` and `asan-ubsan`) and in CI.
 - No public API is added.
-- `ROADMAP.md` and `docs/INDEX.md` mark Stage 02 complete, and this plan
-  becomes reference material.
+- On completion:
+  - `ROADMAP.md` and `docs/INDEX.md` mark Stage 02 complete;
+  - `README.md` updates its status and its "Next" line;
+  - ADR 0003's Consequences record what Stage 02 implemented, and keep only
+    Stage 03's part of §3 to §5 as still to do;
+  - this plan becomes reference material.
 
 ## Open points
 
