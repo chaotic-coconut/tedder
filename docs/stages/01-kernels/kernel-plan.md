@@ -91,7 +91,7 @@ ADR 0003 §4, item 6. The precondition is asserted, as in `Periodic::offset`.
   `min() / epsilon()` (from `std::numeric_limits<T>`), the relative error is
   a small multiple of `epsilon`. Above that threshold, the factors
   `(1 − q)ᵏ` of the factored forms stay normal. For tiny `q`, terms such as
-  `4q` and `q²` can still be subnormal or round to 0. They enter only sums
+  `4q` and `c·q` can still be subnormal or round to 0. They enter only sums
   that also contain a term of at least 1, so their absolute error, a small
   multiple of the smallest subnormal, is negligible next to those sums. At
   `q` equal to the smallest subnormal and to `min()`, both kernels return
@@ -100,13 +100,15 @@ ADR 0003 §4, item 6. The precondition is asserted, as in `Periodic::offset`.
   requirement applies.
 - **Evaluation.** With `t = 1 − q`:
   - C2: `t2 = t·t`, then `t2 · t2 · (4q + 1)`;
-  - C4: `t3 = t·t·t`, then `t3 · t3 · (c·q·q + 6q + 1)`, where
-    `c = 35/3` is a `constexpr` constant. This removes the run-time division
-    by 3, and the polynomial factor is exactly 1 at `q = 0`.
+  - C4: `t3 = t·t·t`, then `t3 · t3 · ((c·q + 6)·q + 1)`, with the
+    quadratic in Horner form and `c = 35/3` a `constexpr` constant. This
+    removes the run-time division by 3, and the polynomial factor is exactly
+    1 at `q = 0`. Its coefficients are positive and `q ≥ 0`, so Horner's
+    sums do not cancel.
 
   First-order rounding-error bounds, with `u = epsilon / 2`:
 
-  | Kernel | `q ≥ 1/2` (`t` exact) | `q < 1/2` | Test tolerance `c` |
+  | Kernel | `q ≥ 1/2` (`t` exact) | `q < 1/2` | Test tolerance `n` |
   | --- | --- | --- | --- |
   | C2 | 5u | 9u | 5 |
   | C4 | 11u | 17u | 9 |
@@ -115,8 +117,8 @@ ADR 0003 §4, item 6. The precondition is asserted, as in `Periodic::offset`.
   value. Contracting a multiply and an add into an FMA only removes
   roundings, so the bounds still hold. In a check against exact rational
   values at about 45,000 points, including the 5,000 largest values below 1,
-  the largest errors were 3.2 (C2) and 5.3 (C4) `epsilon` in `float`, and 2.2
-  and 2.7 in `double`. These are observations, not bounds.
+  the largest errors were 3.2 (C2) and 5.4 (C4) `epsilon` in `float`, and 2.2
+  and 3.0 in `double`. These are observations, not bounds.
 - **Underflow.** At the largest `float` below 1, C4 gives about 8.37e-43, a
   subnormal number. That is allowed: ADR 0003 §4 lets a weight round towards
   0, and the fitter then treats the sample as inactive. In `double` both
@@ -182,7 +184,7 @@ For each kernel:
   weights hard-coded as literals. Compute them offline in exact
   rational arithmetic from the expanded polynomial, so the test does not
   repeat the implementation's floating-point expression. Compare with a
-  relative tolerance of `c · epsilon`, with `c = 5` for C2 and `c = 9` for
+  relative tolerance of `n · epsilon`, with `n = 5` for C2 and `n = 9` for
   C4 (see Evaluation), and record the derivation in the test.
 - **Non-negative and finite.** On a grid over `[0, 1]`, and on the 2,000
   largest values below 1 (stepping down with `std::nextafter`). This is the
