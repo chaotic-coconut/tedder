@@ -19,7 +19,8 @@ add_executable(tedder_tests
   test_domain.cpp
   test_domain_contract.cpp
   test_types.cpp
-  test_geometry.cpp)
+  test_geometry.cpp
+  test_kernel.cpp)
 
 target_link_libraries(tedder_tests PRIVATE tedder::tedder Catch2::Catch2WithMain)
 tedder_configure_compiled_target(tedder_tests)
