@@ -151,9 +151,11 @@ rᵢ = g.offset(xᵢ, x₀)    physical displacement, wrapped
      least-squares solution nor the weighted RMS of ADR 0004. A kernel
      therefore carries no normalising constant and does not depend on `h` or
      `D`.
-  6. **Equality-preserving.** The same `q` always gives the same result, and
-     a call does not modify the kernel, so concurrent calls on one kernel are
-     safe.
+  6. **Equality-preserving and free of side effects.** The result depends
+     only on `q` and on state of the kernel that never changes, so the same
+     `q` always gives the same result. A call writes nothing: not the kernel,
+     not any object the kernel refers to, and no global state. Concurrent
+     calls are therefore safe.
 
   The precondition matters because a kernel formula need not vanish, or even
   stay non-negative, outside `[0, 1]`. Wendland C2, `(1 − q)⁴ (4q + 1)`, gives
