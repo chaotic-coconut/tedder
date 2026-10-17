@@ -4,9 +4,9 @@ Status: completed. Stage 01 is closed. This document is reference material
 describing what was planned and shipped. Where it and the code differ,
 `include/tedder/kernel.hpp` and `tests/test_kernel.cpp` are authoritative.
 
-One acceptance criterion was not met: [ADR 0003](../../adr/0003-geometry-local-frame-support.md)
-was not accepted before K1 and is still proposed. The kernel contract it
-records in §4 is implemented and tested as written there.
+One acceptance criterion was met late: [ADR 0003](../../adr/0003-geometry-local-frame-support.md)
+was accepted at the close of the stage, on 2026-10-17, not before K1. The
+kernel contract it records in §4 is implemented and tested as written there.
 
 This plan implements the kernel contract of ADR 0003 §4: the kernel takes
 `q`, its precondition is `0 ≤ q ≤ 1`, `w(1) = 0`, the result is finite and
