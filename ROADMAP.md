@@ -1,13 +1,14 @@
 # tedder roadmap
 
-Stage 00 — foundation repair is complete. Its detailed work is defined by the
-[field plan](docs/stages/00-foundation/field-plan.md) and [test plan](docs/stages/00-foundation/test-plan.md).
+Stage 00 — foundation repair and Stage 01 — kernels are complete. Their
+detailed work is defined by the Stage 00
+[field plan](docs/stages/00-foundation/field-plan.md) and [test plan](docs/stages/00-foundation/test-plan.md),
+and the Stage 01 [kernel plan](docs/stages/01-kernels/kernel-plan.md).
 
 Later stages are planned:
 
 | Stage | Focus | Detailed document |
 | --- | --- | --- |
-| 01 — Kernels | Compactly supported kernels | [Kernel plan](docs/stages/01-kernels/kernel-plan.md) (draft) |
 | 02 — Reference neighbour search | Search contract and brute-force implementation | Not yet present |
 | 03 — Degree 0 and 1 fitting | Fixed-bandwidth local fits | Not yet present |
 | 04 — Degree 2 fitting | Quadratic fitting | Not yet present |
