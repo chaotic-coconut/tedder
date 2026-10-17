@@ -62,9 +62,14 @@ out), as the workflow guide's stage table says.
 ## S1. Frame and `q²`
 
 - **Frame.** A concrete `detail` type for `B = I/h`. Its only Stage 02
-  operation maps a physical offset `r` to `ξ`, with `ξ_d = r_d / h`: one
-  division per component, as ADR 0003 §4 fixes. It never multiplies by
-  `1/h`.
+  operation, `to_local`, maps a physical offset `r` to `ξ`, with
+  `ξ_d = r_d / h`: one division per component, as ADR 0003 §4 fixes. It
+  never multiplies by `1/h`.
+- **Names.** `to_local` names the role, not the arithmetic, so it stays
+  right for a general `B` with rotation. Stage 03 adds the reverse transforms
+  for Jacobians and Hessians as `to_physical`. The argument is an offset,
+  not a point: `offset` has already translated, and the frame is linear
+  (ADR 0003 §3).
 - **`q²`.** `q² = Σ ξ_d²`, summed in axis order `0 … D−1`.
   - It is not `distance_squared(g, x, x₀) / h²`. That is the rejected
     `r · r < h²` form, which fails for extreme `h`.
@@ -73,7 +78,7 @@ out), as the workflow guide's stage table says.
 - **Precondition.** `admits_bandwidth(g, h)`, asserted where the frame is
   built.
 
-Proposed shape, for the author to decide:
+Proposed shape; the name `to_local` is decided:
 
 ```cpp
 namespace tedder::detail
@@ -82,7 +87,7 @@ namespace tedder::detail
   struct IsotropicFrame
   {
     T h;
-    constexpr Point<T, D> local(const Point<T, D> &r) const noexcept; // ξ = r / h
+    constexpr Point<T, D> to_local(const Point<T, D> &offset) const noexcept; // ξ = offset / h
   };
 
   template <Real T, std::size_t D>
