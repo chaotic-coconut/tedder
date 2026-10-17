@@ -7,7 +7,7 @@ Later stages are planned:
 
 | Stage | Focus | Detailed document |
 | --- | --- | --- |
-| 01 — Kernels | Compactly supported kernels | Not yet present |
+| 01 — Kernels | Compactly supported kernels | [Kernel plan](docs/stages/01-kernels/kernel-plan.md) (draft) |
 | 02 — Reference neighbour search | Search contract and brute-force implementation | Not yet present |
 | 03 — Degree 0 and 1 fitting | Fixed-bandwidth local fits | Not yet present |
 | 04 — Degree 2 fitting | Quadratic fitting | Not yet present |
