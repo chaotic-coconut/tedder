@@ -351,6 +351,9 @@ Still to do:
   otherwise. It is optional; if done, do it before more code depends on the
   name.
 - Whether non-finite sample coordinates stay a precondition of fitting or
-  become a checked failure. ADR 0004 covers non-finite values only.
-- Whether the Stage 02 brute-force backend prefilters with an enlarged radius
-  or returns every index.
+  become a checked failure. ADR 0004 covers non-finite values only. Stage 02
+  keeps them a precondition with a debug-only assertion
+  ([Stage 02 plan](../stages/02-neighbour-search/search-plan.md), A5);
+  Stage 03 decides.
+- Decided in the Stage 02 plan (A1): the brute-force backend returns every
+  index, without prefiltering. Candidate selection makes every decision.

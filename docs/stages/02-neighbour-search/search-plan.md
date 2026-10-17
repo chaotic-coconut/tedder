@@ -1,7 +1,7 @@
 # tedder: Stage 02 neighbour-search plan
 
-Status: draft for the author's review. The decisions marked "author" below
-must be made before S1 starts.
+Status: draft. Decisions A1, A2, A3 and A5 are made; A4, spelling and
+names, waits for the author.
 
 This plan implements the parts of
 [ADR 0003](../../adr/0003-geometry-local-frame-support.md) that turn a query
@@ -36,15 +36,15 @@ Out of scope:
 
 `field.hpp` and `kernel.hpp` do not change.
 
-## Decisions for the author
+## Decisions
 
-| ID | Question | Recommendation |
+| ID | Question | Decision |
 | --- | --- | --- |
-| A1 | Brute force: return every index, or prefilter with the canonical `q² < 1` test? This is ADR 0003's open point. | Every index. It is complete without any argument, it does not depend on the frame, and candidate selection stays the one place that decides. The cost is `O(N)` per query either way. |
-| A2 | Search output: a caller-owned buffer, or a returned vector? | A caller-owned `std::vector<std::size_t>&` whose contents the backend replaces. After the first query, no allocation. |
+| A1 | Brute force: return every index, or prefilter with the canonical `q² < 1` test? This was ADR 0003's open point. | Every index. In the author's words, brute force is only for regular grids and maybe a fallback. It is complete without any argument, it does not depend on the frame, and candidate selection stays the one place that decides. |
+| A2 | Search output: a caller-owned buffer, or a returned vector? | A caller-owned `std::vector<std::size_t>&`, reused across queries, whose contents the backend replaces. After the first query, no allocation. |
 | A3 | Public surface in Stage 02. | None: everything in `namespace detail`. The fit in Stage 03 is the first public entry point, and the search concept comes with Stage 05. |
-| A4 | Headers and names. | For example `include/tedder/detail/frame.hpp` and `include/tedder/detail/search.hpp`, with tests in `tests/test_search.cpp`. Pick one spelling, `neighbour` or `neighbor`, and keep it. |
-| A5 | Non-finite sample coordinates (ADR 0003 open point). | Keep them a precondition, as ADR 0001 does. Optionally assert finiteness in candidate selection, which costs nothing in Release builds. Decide the checked-failure question in Stage 03, where errors are reported. |
+| A4 | Spelling and names. | Open. Recommended: American spelling in code (identifiers, header and file names), as in the C++ standard library (`initializer_list`), Eigen (`normalize`) and nanoflann (`findNeighbors`); British prose stays as it is, and `docs/INDEX.md` lists both spellings as search terms. The proposed names (`IsotropicFrame`, `BruteForceSearch`, `detail/frame.hpp`, `detail/search.hpp`, `tests/test_search.cpp`) avoid the word either way. |
+| A5 | Non-finite sample coordinates. | A precondition, as in ADR 0001, with a debug-only assertion in candidate selection. Whether it becomes a reported failure is decided in Stage 03, where errors are reported. |
 
 ## Order of work
 
@@ -109,8 +109,9 @@ index buffer. In place, it:
 The buffer then holds the candidates in ascending sample index, and its size
 is the candidate count of ADR 0004 §6.
 
-- **Preconditions:** every index is below the number of samples (asserted),
-  and `x₀` is finite.
+- **Preconditions:** every index is below the number of samples, and every
+  sample it reads has finite coordinates (both asserted, A5); `x₀` is
+  finite.
 - **Kept for Stage 03:** `ξ` and `q²` are not stored. Stage 03 decides
   whether to recompute them or to make candidate selection return them
   alongside the indices. Recomputing gives the same values, because it uses
@@ -121,7 +122,7 @@ is the candidate count of ADR 0004 §6.
 The reference backend for Stage 05's equivalence tests. It meets the §5
 contract: complete, extras allowed, duplicates allowed, no decisions.
 
-With A1 as recommended, a query replaces the buffer's contents with
+With A1, a query replaces the buffer's contents with
 `0, 1, …, N−1`. It holds the domain and a `PointView` of the samples. The
 storage the view refers to must outlive the backend, as for `SampleView`.
 
@@ -231,11 +232,10 @@ compares against exact arithmetic there.
 
 ## Acceptance
 
-- The decisions A1 to A5 are made and recorded here before S1.
+- A4 is decided and recorded here before S1; A1 to A3 and A5 already are.
 - T1 to T6 pass with `tools/build-test.sh` (presets `dev-clang`, `dev-gcc`
   and `asan-ubsan`) and in CI.
 - No public API is added.
-- ADR 0003's open point on brute-force prefiltering is closed with A1.
 - `ROADMAP.md` and `docs/INDEX.md` mark Stage 02 complete, and this plan
   becomes reference material.
 
