@@ -41,6 +41,18 @@ struct NonConstCall
     double operator()(double q) noexcept { return q; }
 };
 
+// Could modify the caller's q. The concept calls with a const T, so it is
+// rejected.
+struct TakesReference
+{
+    double operator()(double &q) const noexcept { return q; }
+};
+
+struct TakesConstReference
+{
+    double operator()(const double &q) const noexcept { return q; }
+};
+
 using NoexceptLambda = decltype([](double q) noexcept { return q; });
 using PlainLambda = decltype([](double q) { return q; });
 } // namespace
@@ -48,12 +60,14 @@ using PlainLambda = decltype([](double q) { return q; });
 static_assert(Kernel<WendlandC2, float> && Kernel<WendlandC2, double>);
 static_assert(Kernel<WendlandC4, float> && Kernel<WendlandC4, double>);
 static_assert(Kernel<NoexceptLambda, double>);
+static_assert(Kernel<TakesConstReference, double>);
 
 static_assert(!Kernel<WendlandC2, int>);
 static_assert(!Kernel<NoCall, double>);
 static_assert(!Kernel<NotNoexcept, double>);
 static_assert(!Kernel<ReturnsDouble, float>);
 static_assert(!Kernel<NonConstCall, double>);
+static_assert(!Kernel<TakesReference, double>);
 static_assert(!Kernel<PlainLambda, double>);
 // A double lambda called with a float returns double, not float.
 static_assert(!Kernel<NoexceptLambda, float>);
