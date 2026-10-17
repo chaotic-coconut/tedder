@@ -129,10 +129,15 @@ rᵢ = g.offset(xᵢ, x₀)    physical displacement, wrapped
   - The kernel receives `q = sqrt(q²)`, never `q²`. Wendland kernels contain
     odd powers of `q`, so they would need the square root anyway.
   - `q` is computed only for candidates.
-  - `q²` is a sum of squares, so `q ≥ 0`. For `float` and `double`, `q² < 1`
-    holds exactly when `sqrt(q²) < 1`, so the two forms cannot disagree, and
-    the fitter passes the kernel only `q` in `[0, 1)`. A NaN `q²` fails the
-    candidate test and never reaches the kernel.
+  - `q²` is a sum of squares, so `q ≥ 0`. `sqrt` is correctly rounded and 1
+    is representable, so `q² < 1` gives `q ≤ 1` in every rounding mode. The
+    kernel's precondition therefore holds for every candidate.
+  - In the default rounding mode, round to nearest, the bound is strict: for
+    `float` and `double`, `q² < 1` holds exactly when `sqrt(q²) < 1`, so the
+    two forms cannot disagree, and the fitter passes the kernel only `q` in
+    `[0, 1)`. With upward rounding, `sqrt` of the largest value below 1
+    rounds to 1. That candidate then gets `w(1) = 0` and is not active.
+  - A NaN `q²` fails the candidate test and never reaches the kernel.
 - **Kernel contract.** For a scalar type `T`, a kernel is an object `k` whose
   `const` call `k(q)` is `noexcept` and returns exactly `T`. The `Kernel`
   concept checks only this. A kernel that models the concept also promises,
@@ -140,8 +145,9 @@ rᵢ = g.offset(xᵢ, x₀)    physical displacement, wrapped
   1. **Precondition.** `0 ≤ q ≤ 1`, which also excludes NaN. Any other `q`
      is a caller bug, not a reported error. The kernel may `assert` the
      precondition, as `Periodic::offset` asserts its own.
-  2. **Boundary.** `w(1) = 0`. The fitter never passes `q = 1`; the closed
-     interval lets tests check the boundary value.
+  2. **Boundary.** `w(1) = 0`. In round-to-nearest the fitter never passes
+     `q = 1`. The closed interval lets tests check the boundary value, and
+     keeps the precondition valid under directed rounding.
   3. **Range.** For `q` in `[0, 1]` the result is finite and `≥ 0`. It may
      round to 0 near `q = 1`, and the sample is then not active.
   4. **Positive inside.** In exact arithmetic, `w(q) > 0` for `0 ≤ q < 1`, so
