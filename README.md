@@ -23,8 +23,9 @@ Present:
 * Euclidean and per-axis periodic domains
 * distance and bandwidth calculations
 * `LocalFit`, the result type for a reconstruction
+* the `Kernel` concept and the Wendland C2 and C4 weighting kernels
 
-Next: compactly supported kernels, then brute-force neighbour search.
+Next: brute-force neighbour search, then degree 0 and 1 fitting.
 
 ## Requirements
 

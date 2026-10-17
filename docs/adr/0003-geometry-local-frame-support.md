@@ -7,8 +7,8 @@ Everything else in ADR 0001 and [ADR 0002](0002-point-type-restriction.md)
 stands.
 
 Implementation: §1 is already on `main`, in commit e99f6a5. §2 describes the
-current behaviour. The kernel contract of §4 is to be implemented in Stage 01
-(kernels), as drafted in the
+current behaviour. The kernel contract of §4 was implemented in Stage 01
+(kernels), following the
 [Stage 01 kernel plan](../stages/01-kernels/kernel-plan.md). The rest of §3 to
 §5 belongs to Stage 02 (neighbour search: `ξ`, the candidate test and the
 search contract) and Stage 03 (fitting: transforming derivatives back).
@@ -306,15 +306,22 @@ Done for §1 in commit e99f6a5:
   independently summed squared offset, with exact equality.
 - **`README.md`.** Unaffected; it uses only `distance` and `max_bandwidth`.
 
+Done for the kernel contract of §4 in Stage 01:
+
+- **`include/tedder/kernel.hpp`.** The `Kernel` concept, which checks the
+  call with a `const T` argument, and `WendlandC2` and `WendlandC4`, evaluated
+  in factored form with the precondition asserted.
+- **`tests/test_kernel.cpp`.** Concept checks, and kernel values for `float`
+  and `double` against exact reference weights from
+  `tools/kernel_reference.py`.
+
 Still to do:
 
-- The kernel contract of §4 in Stage 01. Its
-  [plan](../stages/01-kernels/kernel-plan.md) carries the tests.
 - The rest of §3 to §5 in Stages 02 and 03. Their stage files will carry the
   tests.
 - **On acceptance.** Update ADR 0001's status line, as was done for ADR 0002.
-  Mark this ADR accepted in `docs/INDEX.md`, and link it from the Stage 01 and
-  Stage 02 rows of `ROADMAP.md`.
+  Mark this ADR accepted in `docs/INDEX.md`, and link it from the Stage 02 row
+  of `ROADMAP.md` (Stage 01 is complete and no longer has a row).
 
 ## Rejected alternatives
 

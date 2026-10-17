@@ -1,7 +1,12 @@
 # tedder: Stage 01 kernel plan
 
-Status: draft for the author's review. It becomes the active Stage 01 plan
-once [ADR 0003](../../adr/0003-geometry-local-frame-support.md) is accepted.
+Status: completed. Stage 01 is closed. This document is reference material
+describing what was planned and shipped. Where it and the code differ,
+`include/tedder/kernel.hpp` and `tests/test_kernel.cpp` are authoritative.
+
+One acceptance criterion was not met: [ADR 0003](../../adr/0003-geometry-local-frame-support.md)
+was not accepted before K1 and is still proposed. The kernel contract it
+records in §4 is implemented and tested as written there.
 
 This plan implements the kernel contract of ADR 0003 §4: the kernel takes
 `q`, its precondition is `0 ≤ q ≤ 1`, `w(1) = 0`, the result is finite and
@@ -188,9 +193,9 @@ For each kernel:
   exactly 1.
 - **Reference values.** A table of `q` values, including `1/2`, whose exact
   weights lie above the relative-accuracy threshold, with the expected
-  weights hard-coded as literals. Compute them offline in exact
-  rational arithmetic from the expanded polynomial, so the test does not
-  repeat the implementation's floating-point expression. Compare with a
+  weights hard-coded as literals. `tools/kernel_reference.py` computes them
+  in exact rational arithmetic from the expanded polynomial, so the test
+  does not repeat the implementation's floating-point expression. Compare with a
   relative tolerance of `n · epsilon`, with `n = 5` for C2 and `n = 9` for
   C4 (see Evaluation), and record the derivation in the test.
 - **Non-negative and finite.** On a grid over `[0, 1]`, and on the 2,000
@@ -223,6 +228,8 @@ Not tested at runtime, and why:
   becomes reference material, as Stage 00's plans did.
 
 ## Open points
+
+Carried forward; not needed to close Stage 01:
 
 - Whether `kernel.hpp` includes all of `field.hpp` only for `Real`, or `Real`
   moves to a smaller header later.
