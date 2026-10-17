@@ -90,12 +90,13 @@ ADR 0003 §4, item 6. The precondition is asserted, as in `Periodic::offset`.
 - **Relative accuracy.** Where the exact weight is at least
   `min() / epsilon()` (from `std::numeric_limits<T>`), the relative error is
   a small multiple of `epsilon`. Above that threshold, the factors
-  `(1 − q)ᵏ` of the factored forms stay normal. For tiny `q`, terms such as
-  `4q` and `c·q` can still be subnormal or round to 0. They enter only sums
-  that also contain a term of at least 1, so their absolute error, a small
-  multiple of the smallest subnormal, is negligible next to those sums. At
-  `q` equal to the smallest subnormal and to `min()`, both kernels return
-  exactly 1 in `float` and `double`. Below the threshold, gradual underflow
+  `(1 − q)ᵏ` of the factored forms stay normal. For tiny `q`, the products
+  `4q`, `c·q` and `(c·q + 6)·q` can be subnormal. None of them rounds to 0
+  for a nonzero `q`, because each multiplies `q` by a factor of at least 1.
+  The next addition, of 1 or 6, absorbs them, so their absolute error, at
+  most a small multiple of the smallest subnormal, is negligible next to
+  that sum. At `q` equal to the smallest subnormal and to `min()`, both
+  kernels return exactly 1 in `float` and `double`. Below the threshold, gradual underflow
   may cost relative accuracy, and only the non-negative and finite
   requirement applies.
 - **Evaluation.** With `t = 1 − q`:
