@@ -1,8 +1,9 @@
 BasedOnStyle: LLVM
-BreakBeforeBraces: GNU
+BreakBeforeBraces: Allman
+NamespaceIndentation: All
+AlwaysBreakTemplateDeclarations: Yes
 IndentWidth: 2
 TabWidth: 2
 UseTab: Never
 ContinuationIndentWidth: 4
-IndentAccessModifiers: true
 ColumnLimit: 140
