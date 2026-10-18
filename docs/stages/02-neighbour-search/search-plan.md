@@ -174,9 +174,14 @@ test: expectations are hand-built, or come from integer arithmetic.
   exact arithmetic. Multiplying by a rounded `1/h` differs in the last bit,
   in `float` and in `double`.
 - `q²` of hand-chosen `ξ` with exactly representable squares and sums.
-- `q²` sums in axis order. With `ξ = (1, a, a, a, a)` and `a²` at most half
-  an ulp of 1 (`a = 2⁻¹²` in `float`, `2⁻²⁷` in `double`), the sum in axis
-  order is exactly 1; summing the `a²` first gives more.
+- `q²` sums in axis order. With `ξ = (5s, 7s, b)` (`float`: `b = 0.5`,
+  `s = 2⁻¹³`; `double`: `b = 0.75`, `s = 2⁻²⁷`), the two small squares are
+  12.5 and 24.5 steps of the spacing at `b²`. In axis order they add exactly
+  to 37 steps, and `q² = b² + 37` steps. Either other order adds them to
+  `b²` one at a time, rounds two ties to even and ends at `b² + 36` steps.
+  Swapping the first two axes cannot change a sum, so this tells apart every
+  order that can. A longer `ξ = (1, a, a, a, a)`, with `a²` at most half an
+  ulp of 1, checks that reverse order fails.
 
 ### T2. Candidate test
 
@@ -294,10 +299,14 @@ compares against exact arithmetic there.
   does constant evaluation with gcc-13 or clang-18. So `q²` can differ
   between platforms, and between compile time and run time.
   - The difference grows with `D`. Without fusion, each of the `D` products
-    rounds once more, and the roundings accumulate. Both sums lie within
-    `γ_D · q²` of the exact `q²`, with `γ_D = D·u / (1 − D·u)` and
-    `u = epsilon / 2`. So two builds can decide differently only when the
-    exact `q²` is within about `D·u` of 1. Example from the review of PR
+    rounds once more, and the roundings accumulate. For `D·u < 1`, with
+    `u = epsilon / 2`, both sums lie within `γ_D · q² + D · denorm_min()` of
+    the exact `q²`, where `γ_D = D·u / (1 − D·u)`. The second term covers
+    underflow: a square below `min()` rounds with an absolute error of up to
+    `denorm_min() / 2`, so its relative error can reach 1 (the square of
+    `denorm_min()` rounds to 0). Near `q² = 1` that term is negligible, so
+    two builds can decide differently only when the exact `q²` is within
+    about `D·u` of 1. Example from the review of PR
     #12: `float`, `D = 22`, every `ξ_d = 0x1.b4a29p-3`. The unfused sum is
     `0x1.ffffecp-1` and the fused sum exactly 1, although the exact `q²` is
     about `4.4 u` below 1.
