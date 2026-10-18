@@ -300,16 +300,20 @@ compares against exact arithmetic there.
   between platforms, and between compile time and run time.
   - The difference grows with `D`. Without fusion, each of the `D` products
     rounds once more, and the roundings accumulate. For `D·u < 1`, with
-    `u = epsilon / 2`, both sums lie within `γ_D · q² + D · denorm_min()` of
-    the exact `q²`, where `γ_D = D·u / (1 − D·u)`. The second term covers
-    underflow: a square below `min()` rounds with an absolute error of up to
+    `u = epsilon / 2`, and as long as no square or partial sum overflows,
+    both sums lie within `γ_D · q² + D · denorm_min()` of the exact `q²`,
+    where `γ_D = D·u / (1 − D·u)`. The second term covers underflow: a
+    square below `min()` rounds with an absolute error of up to
     `denorm_min() / 2`, so its relative error can reach 1 (the square of
-    `denorm_min()` rounds to 0). Near `q² = 1` that term is negligible, so
-    two builds can decide differently only when the exact `q²` is within
-    about `D·u` of 1. Example from the review of PR
-    #12: `float`, `D = 22`, every `ξ_d = 0x1.b4a29p-3`. The unfused sum is
-    `0x1.ffffecp-1` and the fused sum exactly 1, although the exact `q²` is
-    about `4.4 u` below 1.
+    `denorm_min()` rounds to 0).
+  - Overflow needs an exact `q²` close to `max()` or beyond, as in the
+    `h = min()`, `r = 1` example of T2. That is far outside the support, and
+    both builds reject the sample. Near `q² = 1` nothing overflows (ADR 0003
+    §4, Range) and the underflow term is negligible, so two builds can decide
+    differently only when the exact `q²` is within about `D·u` of 1.
+  - Example from the review of PR #12: `float`, `D = 22`, every
+    `ξ_d = 0x1.b4a29p-3`. The unfused sum is `0x1.ffffecp-1` and the fused
+    sum exactly 1, although the exact `q²` is about `4.4 u` below 1.
   - ADR 0003 §4 accepts that no formula decides exactly near the boundary.
     Its "about 3 ulps" is an observation, not a bound. What it requires is
     that every caller uses one formula. Contraction lets that one formula
