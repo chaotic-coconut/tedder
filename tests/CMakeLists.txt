@@ -12,6 +12,8 @@ foreach(t Catch2 Catch2WithMain)
       set_target_properties(${t} PROPERTIES
         INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${dirs}")
     endif()
+    # Keep Catch2's own sources out of compile_commands.json.
+    set_target_properties(${t} PROPERTIES EXPORT_COMPILE_COMMANDS OFF)
   endif()
 endforeach()
 
