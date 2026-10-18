@@ -306,6 +306,12 @@ compares against exact arithmetic there.
     square below `min()` rounds with an absolute error of up to
     `denorm_min() / 2`, so its relative error can reach 1 (the square of
     `denorm_min()` rounds to 0).
+  - These figures assume the default rounding mode, round to nearest. ADR
+    0003 §4 also considers directed rounding, where one rounding can err by
+    almost `epsilon`: with upward rounding, the `float` square of
+    `0x1.000002p+0` is about one `epsilon` too large, relative to the exact
+    square. In a directed mode, read `u` as `epsilon` here and below, and
+    double the underflow term.
   - Overflow needs an exact `q²` close to `max()` or beyond, as in the
     `h = min()`, `r = 1` example of T2. That is far outside the support, and
     both builds reject the sample. Near `q² = 1` nothing overflows (ADR 0003
