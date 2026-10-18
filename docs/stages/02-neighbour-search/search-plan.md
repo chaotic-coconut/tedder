@@ -128,8 +128,9 @@ is the candidate count of ADR 0004 §6.
   finite.
 - **Kept for Stage 03:** `ξ` and `q²` are not stored. Stage 03 decides
   whether to recompute them or to make candidate selection return them
-  alongside the indices. Recomputing gives the same values, because it uses
-  the same functions.
+  alongside the indices. Recomputing uses the same functions, but gives the
+  same `q²` only if both calls are compiled alike (see Open points, FMA
+  contraction).
 
 ## S4. Brute-force backend
 
@@ -280,5 +281,24 @@ compares against exact arithmetic there.
 
 - Whether candidate selection should return `ξ` and `q²` with the indices.
   This is decided in Stage 03, by what the fit needs.
+- FMA contraction in `squared_norm`. A compiler may fuse
+  `sum += xi[d] * xi[d]` into a fused multiply-add, depending on flags and
+  target. clang-18 for ARM64 does by default, and x86-64 builds do with
+  `-march=haswell`. Default x86-64 builds, as in CI, do not, and neither
+  does constant evaluation with gcc-13 or clang-18. So `q²` can differ in its
+  last bit between platforms, and between compile time and run time.
+  - A decision can flip only within a rounding of `q² = 1`, inside the
+    ambiguity ADR 0003 §4 accepts. The planned tests use exact values, where
+    fusing changes nothing.
+  - The rest of the path is unaffected. Division is correctly rounded, and
+    `Periodic::offset` multiplies `L` by −1, 0 or 1, which is exact.
+  - If Stage 03 recomputes `q²` and needs the same bits as selection, an
+    explicit `std::fma` in `squared_norm` fixes its rounding on every
+    platform with IEEE arithmetic, that is, without `-ffast-math`.
+    tedder is header-only, so it cannot impose `-ffp-contract=off` on its
+    users' builds. The costs: a call to the math library per term in
+    default x86-64 builds, and no compile-time evaluation with clang-18.
+  - If candidate selection returns `q²`, nothing is recomputed and the
+    question disappears. Decided together with the point above.
 - Whether a per-sample stamp array should replace sort and unique for very
   large clouds (review D9). Not before measurements show the sort matters.
