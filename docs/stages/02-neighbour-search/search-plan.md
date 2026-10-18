@@ -291,11 +291,22 @@ compares against exact arithmetic there.
   `sum += xi[d] * xi[d]` into a fused multiply-add, depending on flags and
   target. clang-18 for ARM64 does by default, and x86-64 builds do with
   `-march=haswell`. Default x86-64 builds, as in CI, do not, and neither
-  does constant evaluation with gcc-13 or clang-18. So `q²` can differ in its
-  last bit between platforms, and between compile time and run time.
-  - A decision can flip only within a rounding of `q² = 1`, inside the
-    ambiguity ADR 0003 §4 accepts. The planned tests use exact values, where
-    fusing changes nothing.
+  does constant evaluation with gcc-13 or clang-18. So `q²` can differ
+  between platforms, and between compile time and run time.
+  - The difference grows with `D`. Without fusion, each of the `D` products
+    rounds once more, and the roundings accumulate. Both sums lie within
+    `γ_D · q²` of the exact `q²`, with `γ_D = D·u / (1 − D·u)` and
+    `u = epsilon / 2`. So two builds can decide differently only when the
+    exact `q²` is within about `D·u` of 1. Example from the review of PR
+    #12: `float`, `D = 22`, every `ξ_d = 0x1.b4a29p-3`. The unfused sum is
+    `0x1.ffffecp-1` and the fused sum exactly 1, although the exact `q²` is
+    about `4.4 u` below 1.
+  - ADR 0003 §4 accepts that no formula decides exactly near the boundary.
+    Its "about 3 ulps" is an observation, not a bound. What it requires is
+    that every caller uses one formula. Contraction lets that one formula
+    round differently in different builds, so the question is consistency,
+    not accuracy.
+  - The planned tests use exact values, where fusing changes nothing.
   - The rest of the path is unaffected. Division is correctly rounded, and
     `Periodic::offset` multiplies `L` by −1, 0 or 1, which is exact.
   - If Stage 03 recomputes `q²` and needs the same bits as selection, an
