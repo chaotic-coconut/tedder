@@ -63,6 +63,23 @@ namespace
   constexpr T five_thirds = 0x1.aaaaaaaaaaaabp+0;
   template <>
   constexpr float five_thirds<float> = 0x1.aaaaaap+0f;
+
+  // The axis-order case: xi = (5s, 7s, b), with b large and s small. A
+  // "step" is the gap between b^2 and the next representable number.
+  template <Real T>
+  struct OrderCase
+  {
+    Point<T, 3> xi;
+    T q2;    // b^2 + 37 steps: the sum in axis order
+    T wrong; // b^2 + 36 steps: the sum when b^2 is added earlier
+  };
+
+  // double: b = 0.75, s = 2^-27, b^2 = 0.5625, step = 2^-53.
+  template <Real T>
+  constexpr OrderCase<T> order_case{{0x1.4p-25, 0x1.cp-25, 0.75}, 0x1.2000000000025p-1, 0x1.2000000000024p-1};
+  // float: b = 0.5, s = 2^-13, b^2 = 0.25, step = 2^-25.
+  template <>
+  constexpr OrderCase<float> order_case<float>{{0x1.4p-11f, 0x1.cp-11f, 0.5f}, 0x1.00004ap-2f, 0x1.000048p-2f};
 } // namespace
 
 // Dividing by a power of two only changes the exponent, so r / h is exact and
@@ -117,16 +134,41 @@ TEMPLATE_TEST_CASE("Frame: squared_norm of hand-chosen xi is exact", "[search][f
 
 // Rounding makes a floating-point sum depend on the order of its terms. The
 // plan fixes axis order 0, 1, 2, ..., so that every caller gets the same q^2.
-// This case gives different results in different orders.
 //
-// xi = (1, a, a, a, a), with a^2 tiny:
+// xi = (5s, 7s, b). Measured in steps of b^2, the two small squares are
+// 12.5 and 24.5 steps: each is half a step off a whole number.
+// - In axis order, the two small squares are added first, exactly:
+//   12.5 + 24.5 = 37 steps. Adding that to b^2 is exact too.
+// - In either other order, b^2 comes earlier, and each small square is added
+//   to it on its own. Each addition lands exactly halfway between two
+//   representable numbers and rounds to the even one, losing half a step.
+//   Twice: the sum ends at b^2 + 36 steps.
+// Swapping axes 0 and 1 cannot change the sum, because a + b and b + a round
+// the same. So this case tells apart every order that could change q^2.
+TEMPLATE_TEST_CASE("Frame: squared_norm sums in axis order", "[search][frame]", float, double)
+{
+  using T = TestType;
+  const OrderCase<T> &c = order_case<T>;
+  CHECK(squared_norm(c.xi) == c.q2);
+  // Guard: both orders that add b^2 earlier give b^2 + 36 steps.
+  const T s0 = c.xi[0] * c.xi[0];
+  const T s1 = c.xi[1] * c.xi[1];
+  const T b2 = c.xi[2] * c.xi[2];
+  CHECK((s0 + b2) + s1 == c.wrong);
+  CHECK((s1 + b2) + s0 == c.wrong);
+}
+
+// A second order check, on a longer vector. xi = (1, a, a, a, a), with a^2
+// tiny:
 // - In axis order, 1 + a^2 rounds back to 1, four times, so q^2 = 1.
 //   a^2 is at most half the gap between 1 and the next representable number,
 //   and an exact tie rounds to the even neighbour, which is 1.
-// - Small terms first, 4 a^2 is big enough to survive, so the sum exceeds 1.
+// - In reverse order, the four a^2 are added first, and 4 a^2 is big enough
+//   to survive, so the sum exceeds 1. Other orders that add several a^2
+//   before the 1 fail the same way.
 // float: a = 2^-12, a^2 = 2^-24. double: a = 2^-27, a^2 = 2^-54.
 // (0x1p-12 is the hex literal for 1 * 2^-12.)
-TEMPLATE_TEST_CASE("Frame: squared_norm sums in axis order", "[search][frame]", float, double)
+TEMPLATE_TEST_CASE("Frame: squared_norm does not sum in reverse order", "[search][frame]", float, double)
 {
   using T = TestType;
   const T a = std::same_as<T, float> ? T{0x1p-12f} : T{0x1p-27};
