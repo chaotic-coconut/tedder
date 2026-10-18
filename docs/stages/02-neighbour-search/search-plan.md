@@ -170,7 +170,13 @@ test: expectations are hand-built, or come from integer arithmetic.
 
 - With `h` a power of two, `ξ` equals hand-computed dyadic values exactly,
   including negative components.
+- `to_local` divides. With `h = 3`, `5 / h` equals `5/3` rounded once, from
+  exact arithmetic. Multiplying by a rounded `1/h` differs in the last bit,
+  in `float` and in `double`.
 - `q²` of hand-chosen `ξ` with exactly representable squares and sums.
+- `q²` sums in axis order. With `ξ = (1, a, a, a, a)` and `a²` at most half
+  an ulp of 1 (`a = 2⁻¹²` in `float`, `2⁻²⁷` in `double`), the sum in axis
+  order is exactly 1; summing the `a²` first gives more.
 
 ### T2. Candidate test
 
