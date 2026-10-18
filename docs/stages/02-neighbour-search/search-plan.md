@@ -71,6 +71,15 @@ out), as the workflow guide's stage table says.
   for Jacobians and Hessians as `to_physical`. The argument is an offset,
   not a point: `offset` has already translated, and the frame is linear
   (ADR 0003 §3).
+- **Type name.** `IsotropicFrame`, decided by the author. Offsets form a
+  vector space, whose frame is a basis with no origin, so the type needs no
+  `x₀`. `Isotropic` separates it from a possible general-`B` type, which
+  could be `MatrixFrame`, with `LocalFrame` for a later `detail` concept
+  (ADR 0003 §3). Not chosen: `IsotropicScaling`, accurate but leaving no
+  family name for the concept; `IsotropicBandwidth`, which names the
+  parameter, while in kernel density estimation a bandwidth matrix is a
+  variance matrix (`H = h²I`), not `B`; `IsotropicNormalization`, because
+  ADR 0003 §4 already uses "normalising" for the kernel's constant.
 - **`q²`.** `q² = Σ ξ_d²`, summed in axis order `0 … D−1`.
   - It is not `distance_squared(g, x, x₀) / h²`. That is the rejected
     `r · r < h²` form, which fails for extreme `h`.
@@ -79,7 +88,7 @@ out), as the workflow guide's stage table says.
 - **Precondition.** `admits_bandwidth(g, h)`, asserted where the frame is
   built.
 
-Proposed shape; the name `to_local` is decided:
+Proposed shape; the names `IsotropicFrame` and `to_local` are decided:
 
 ```cpp
 namespace tedder::detail
