@@ -85,8 +85,9 @@ out), as the workflow guide's stage table says.
     `r · r < h²` form, which fails for extreme `h`.
 - **Exactness, for tests only.** `r_d / h` is exact when `h` is a power of
   two and the result stays normal.
-- **Precondition.** `admits_bandwidth(g, h)`, asserted where the frame is
-  built.
+- **Precondition.** `admits_bandwidth(g, h)`. The frame is an aggregate and
+  does not know the domain, so candidate selection, which receives both,
+  asserts it (S3).
 
 Proposed shape; the names `IsotropicFrame` and `to_local` are decided:
 
@@ -123,9 +124,29 @@ index buffer. In place, it:
 The buffer then holds the candidates in ascending sample index, and its size
 is the candidate count of ADR 0004 §6.
 
-- **Preconditions:** every index is below the number of samples, and every
-  sample it reads has finite coordinates (both asserted, A5); `x₀` is
-  finite.
+Shape, as chosen by the author: a free function that takes the frame, not
+`h`, and works in place on the caller's buffer. The fit builds one frame and
+uses it for selection and, in Stage 03, for `to_physical`. The name is
+proposed:
+
+```cpp
+namespace tedder::detail
+{
+  template <Domain G>
+  void select_candidates(const G &g, const IsotropicFrame<typename G::scalar_type, G::dimension> &frame,
+                         const typename G::point_type &x0,
+                         PointView<typename G::scalar_type, G::dimension> points,
+                         std::vector<std::size_t> &indices);
+}
+```
+
+- **Preconditions, as debug-only asserts.** On entry,
+  `admits_bandwidth(g, frame.h)` (the S1 precondition) and a finite `x₀`.
+  For each index, first that it is below the number of samples, before the
+  point is read, then that the point's coordinates are finite (A5). Stage 03
+  reports an inadmissible `h` and a non-finite `x₀` as errors before it
+  calls selection (ADR 0004 §7), so these asserts only guard internal
+  callers.
 - **Kept for Stage 03:** `ξ` and `q²` are not stored. Stage 03 decides
   whether to recompute them or to make candidate selection return them
   alongside the indices. Recomputing uses the same functions, but gives the
